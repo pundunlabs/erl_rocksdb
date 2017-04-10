@@ -2,7 +2,7 @@
 %%% @author erdem aksu <erdem@sitting>
 %%% @copyright (C) 2017, Mobile Arts AB
 %%% @doc
-%%% Leveldb Library functions.
+%%% Rocksdb Library functions.
 %%% @end
 %%% Created :  10 Apr 2017 by erdem <erdem@sitting>
 %%%-------------------------------------------------------------------
@@ -30,37 +30,37 @@ build_rocksdb_options(OptionsPL) ->
     build_rocksdb_options(OptionsPL, #rocksdb_options{}).
 
 -spec build_rocksdb_options(OptionsPL::[{atom(), term()}],
-                            LeveldbOptions::#rocksdb_options{}) -> ok | {error, Reason::term()}.
-build_rocksdb_options([], LeveldbOptions) ->
-    LeveldbOptions;
-build_rocksdb_options([{comparator, ascending}|Rest], LeveldbOptions) ->
-    build_rocksdb_options(Rest, LeveldbOptions#rocksdb_options{comparator = 1});
-build_rocksdb_options([{comparator, descending}|Rest], LeveldbOptions) ->
-    build_rocksdb_options(Rest, LeveldbOptions#rocksdb_options{comparator = 0});
-build_rocksdb_options([{create_if_missing, Bool}|Rest], LeveldbOptions)
+                            RocksdbOptions::#rocksdb_options{}) -> ok | {error, Reason::term()}.
+build_rocksdb_options([], RocksdbOptions) ->
+    RocksdbOptions;
+build_rocksdb_options([{comparator, ascending}|Rest], RocksdbOptions) ->
+    build_rocksdb_options(Rest, RocksdbOptions#rocksdb_options{comparator = 1});
+build_rocksdb_options([{comparator, descending}|Rest], RocksdbOptions) ->
+    build_rocksdb_options(Rest, RocksdbOptions#rocksdb_options{comparator = 0});
+build_rocksdb_options([{create_if_missing, Bool}|Rest], RocksdbOptions)
     when Bool == false; Bool == true ->
-    build_rocksdb_options(Rest, LeveldbOptions#rocksdb_options{create_if_missing = Bool});
-build_rocksdb_options([{error_if_exists, Bool}|Rest], LeveldbOptions)
+    build_rocksdb_options(Rest, RocksdbOptions#rocksdb_options{create_if_missing = Bool});
+build_rocksdb_options([{error_if_exists, Bool}|Rest], RocksdbOptions)
     when Bool == false; Bool == true ->
-    build_rocksdb_options(Rest, LeveldbOptions#rocksdb_options{error_if_exists = Bool});
-build_rocksdb_options([{paranoid_checks, Bool}|Rest], LeveldbOptions)
+    build_rocksdb_options(Rest, RocksdbOptions#rocksdb_options{error_if_exists = Bool});
+build_rocksdb_options([{paranoid_checks, Bool}|Rest], RocksdbOptions)
     when Bool == false; Bool == true ->
-    build_rocksdb_options(Rest, LeveldbOptions#rocksdb_options{paranoid_checks = Bool});
-build_rocksdb_options([{write_buffer_size, Int}|Rest], LeveldbOptions)
+    build_rocksdb_options(Rest, RocksdbOptions#rocksdb_options{paranoid_checks = Bool});
+build_rocksdb_options([{write_buffer_size, Int}|Rest], RocksdbOptions)
     when is_integer(Int) ->
-    build_rocksdb_options(Rest, LeveldbOptions#rocksdb_options{write_buffer_size = Int});
-build_rocksdb_options([{max_open_files, Int}|Rest], LeveldbOptions)
+    build_rocksdb_options(Rest, RocksdbOptions#rocksdb_options{write_buffer_size = Int});
+build_rocksdb_options([{max_open_files, Int}|Rest], RocksdbOptions)
     when is_integer(Int) ->
-    build_rocksdb_options(Rest, LeveldbOptions#rocksdb_options{max_open_files = Int});
-build_rocksdb_options([{block_size, Int}|Rest], LeveldbOptions)
+    build_rocksdb_options(Rest, RocksdbOptions#rocksdb_options{max_open_files = Int});
+build_rocksdb_options([{block_size, Int}|Rest], RocksdbOptions)
     when is_integer(Int) ->
-    build_rocksdb_options(Rest, LeveldbOptions#rocksdb_options{block_size = Int});
-build_rocksdb_options([{block_restart_interval, Int}|Rest], LeveldbOptions)
+    build_rocksdb_options(Rest, RocksdbOptions#rocksdb_options{block_size = Int});
+build_rocksdb_options([{block_restart_interval, Int}|Rest], RocksdbOptions)
     when is_integer(Int) ->
-    build_rocksdb_options(Rest, LeveldbOptions#rocksdb_options{block_restart_interval = Int});
-build_rocksdb_options([E|Rest], LeveldbOptions) ->
+    build_rocksdb_options(Rest, RocksdbOptions#rocksdb_options{block_restart_interval = Int});
+build_rocksdb_options([E|Rest], RocksdbOptions) ->
     error_logger:info_msg("Unsupported rocksdb options parameter: ~p", [E]),
-    build_rocksdb_options(Rest, LeveldbOptions).
+    build_rocksdb_options(Rest, RocksdbOptions).
 
 
 %%--------------------------------------------------------------------
@@ -73,21 +73,21 @@ build_rocksdb_readoptions(OptionsPL) ->
     build_rocksdb_readoptions(OptionsPL, #rocksdb_readoptions{}).
 
 -spec build_rocksdb_readoptions(OptionsPL::[{atom(), term()}],
-                            LeveldbiReadOptions::#rocksdb_readoptions{}) -> ok | {error, Reason::term()}.
-build_rocksdb_readoptions([], LeveldbReadOptions) ->
-    LeveldbReadOptions;
+                            RocksdbiReadOptions::#rocksdb_readoptions{}) -> ok | {error, Reason::term()}.
+build_rocksdb_readoptions([], RocksdbReadOptions) ->
+    RocksdbReadOptions;
 build_rocksdb_readoptions([{verify_checksums, Bool}|Rest],
-                          LeveldbReadOptions) when Bool == true;
+                          RocksdbReadOptions) when Bool == true;
                                                    Bool == false ->
     build_rocksdb_readoptions(Rest,
-                              LeveldbReadOptions#rocksdb_readoptions{verify_checksums = Bool});
+                              RocksdbReadOptions#rocksdb_readoptions{verify_checksums = Bool});
 build_rocksdb_readoptions([{fill_cache, Bool}|Rest],
-                          LeveldbReadOptions) when Bool == true;
+                          RocksdbReadOptions) when Bool == true;
                                                    Bool == false ->
     build_rocksdb_readoptions(Rest,
-                              LeveldbReadOptions#rocksdb_readoptions{fill_cache = Bool});
-build_rocksdb_readoptions([_|Rest], LeveldbReadOptions) -> 
-    build_rocksdb_readoptions(Rest, LeveldbReadOptions).
+                              RocksdbReadOptions#rocksdb_readoptions{fill_cache = Bool});
+build_rocksdb_readoptions([_|Rest], RocksdbReadOptions) -> 
+    build_rocksdb_readoptions(Rest, RocksdbReadOptions).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -99,13 +99,13 @@ build_rocksdb_writeoptions(OptionsPL) ->
     build_rocksdb_writeoptions(OptionsPL, #rocksdb_writeoptions{}).
 
 -spec build_rocksdb_writeoptions(OptionsPL::[{atom(), term()}],
-                                 LeveldbiReadOptions::#rocksdb_writeoptions{}) -> ok | {error, Reason::term()}.
-build_rocksdb_writeoptions([], LeveldbWriteOptions) ->
-    LeveldbWriteOptions;
+                                 RocksdbiReadOptions::#rocksdb_writeoptions{}) -> ok | {error, Reason::term()}.
+build_rocksdb_writeoptions([], RocksdbWriteOptions) ->
+    RocksdbWriteOptions;
 build_rocksdb_writeoptions([{sync, Bool}|Rest],
-                           LeveldbWriteOptions) when Bool == true;
+                           RocksdbWriteOptions) when Bool == true;
                                                      Bool == false ->
     build_rocksdb_writeoptions(Rest,
-                               LeveldbWriteOptions#rocksdb_writeoptions{sync = Bool});
-build_rocksdb_writeoptions([_|Rest], LeveldbWriteOptions) -> 
-    build_rocksdb_writeoptions(Rest, LeveldbWriteOptions).
+                               RocksdbWriteOptions#rocksdb_writeoptions{sync = Bool});
+build_rocksdb_writeoptions([_|Rest], RocksdbWriteOptions) -> 
+    build_rocksdb_writeoptions(Rest, RocksdbWriteOptions).

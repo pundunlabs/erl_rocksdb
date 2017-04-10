@@ -126,29 +126,29 @@ write(_db, _writeoptions, _Delete_Ks, _Put_KVs)->
 %% Declaring structs and constructing objects
 
 %%--------------------------------------------------------------------
-%% @doc Make and get a NIF resource constructed by the provided LeveldbOptions.
+%% @doc Make and get a NIF resource constructed by the provided RocksdbOptions.
 %% This resource can be used for first arity in open_db/2 function.
 %% @end
 %%--------------------------------------------------------------------
--spec options(LeveldbOptions :: #rocksdb_options{}) -> {ok, options()} | {error, Reason :: any()}.
+-spec options(RocksdbOptions :: #rocksdb_options{}) -> {ok, options()} | {error, Reason :: any()}.
 options(_rocksdb_options_record) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Make and get a NIF resource constructed by the provided LeveldbReadOptions.
+%% @doc Make and get a NIF resource constructed by the provided RocksdbReadOptions.
 %% This resource can be used for second arity in get/3 function.
 %% @end
 %%--------------------------------------------------------------------
--spec readoptions(LeveldbReadOptions :: #rocksdb_readoptions{}) -> {ok, readoptions()} | {error, Reason :: any()}.
+-spec readoptions(RocksdbReadOptions :: #rocksdb_readoptions{}) -> {ok, readoptions()} | {error, Reason :: any()}.
 readoptions(_rocksdb_readoptions_record) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Make and get a NIF resource constructed by the provided LeveldbWriteOptions.
+%% @doc Make and get a NIF resource constructed by the provided RocksdbWriteOptions.
 %% This resource can be used for second arity in put/4. delete/3, write/4 functions.
 %% @end
 %%--------------------------------------------------------------------
--spec writeoptions(LeveldbWriteOptions :: #rocksdb_writeoptions{}) -> {ok, writeoptions()} | {error, Reason :: any()}.
+-spec writeoptions(RocksdbWriteOptions :: #rocksdb_writeoptions{}) -> {ok, writeoptions()} | {error, Reason :: any()}.
 writeoptions(_rocksdb_writeoptions_record) ->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -215,7 +215,7 @@ read_range_n(_DB, _ReadOptions, _StartKey, _N) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Create a LevelDB Iterator and get NIF resource.
+%% @doc Create a RocksDB Iterator and get NIF resource.
 %% @end
 %%--------------------------------------------------------------------
 -spec iterator(DB :: db(), ReadOptions :: readoptions()) ->
@@ -224,7 +224,7 @@ iterator(_DB, _ReadOptions) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Delete a LevelDB Iterator.
+%% @doc Delete a RocksDB Iterator.
 %% @end
 %%--------------------------------------------------------------------
 -spec delete_iterator(It :: it()) ->
@@ -233,7 +233,7 @@ delete_iterator(_It) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Iterate to first entry in LevelDB database and return first
+%% @doc Iterate to first entry in RocksDB database and return first
 %% key/value pair.
 %% @end
 %%--------------------------------------------------------------------
@@ -243,7 +243,7 @@ first(_It) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Iterate to last entry in LevelDB database and return last
+%% @doc Iterate to last entry in RocksDB database and return last
 %% key/value pair.
 %% @end
 %%--------------------------------------------------------------------
@@ -253,7 +253,7 @@ last(_It) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Iterate to the entry specified by StartKey in LevelDB database
+%% @doc Iterate to the entry specified by StartKey in RocksDB database
 %% and return seeked key/value pair.
 %% @end
 %%--------------------------------------------------------------------
@@ -263,7 +263,7 @@ seek(_DB, _StartKey) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Iterate to next entry in LevelDB database and return
+%% @doc Iterate to next entry in RocksDB database and return
 %% the next key/value pair.
 %% @end
 %%--------------------------------------------------------------------
@@ -273,7 +273,7 @@ next(_It) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Iterate to previous entry in LevelDB database and return
+%% @doc Iterate to previous entry in RocksDB database and return
 %% the previous key/value pair.
 %% @end
 %%--------------------------------------------------------------------
