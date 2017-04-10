@@ -1,10 +1,44 @@
+# ignore any files and folders generated under _build dir
+_build
+
+#ignore rocksdb dir
+c_src/rocksdb
+
+#docs
+doc
+!doc/overview.edoc
+
+#eunit dir
 .eunit
-deps
-*.o
-*.beam
-*.plt
+
+# ignore sasl_log
+sasl_log
+
+#ignore autodeps
+*.autodeps
+
+# ignore any compiled c-code under system architecture directory
+x86_64-unknown-linux-gnu
+
+#ignore emacs bkp + autostore
+*~
+*\#
+*/.#*
 erl_crash.dump
-ebin
-rel/example_project
-.concrete/DEV_MODE
-.rebar
+
+#ignore vim swap files
+*.swp
+
+#ignore generated libraries
+*.so*
+*.o*
+*.d
+
+# ignore .plts (Dialyzer PLT directory)
+.plts
+
+# ignore rebar.lock file
+rebar.lock
+
+#ignore pc plugin artifact
+compile_commands.json
