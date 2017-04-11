@@ -50,71 +50,21 @@ void delete_rit(it_obj_resource* rit){
     rit->mtx->unlock();
 }
 
-int init_options(ErlNifEnv* env, const ERL_NIF_TERM* options_array, rocksdb::Options **_options) {
-    int temp = -1;
-    rocksdb::Options *options = new rocksdb::Options;
-    *_options = options;
-
-    /* 0. rocksdb_options,
-    // 1. comparator,
-    // 2. create_if_missing,
-    // 3. error_if_exists,
-    // 4. paranoid_checks,
-    // 5. env,
-    // 6. info_log,
-    // 7. write_buffer_size,
-    // 8. max_open_files,
-    // 9. block_cache,
-    // 12. compression,
-    // 13. filter_policy*/
-    
-    //Set comparator
-    if (!enif_get_int(env, options_array[1], &temp)){
-	return -1;
-    }
-
-    if ( temp == 0 ) {
-	options->comparator = &descendingcomparator;
-    }
-     
-    //Set create_if_missing
-    temp = get_bool(env, options_array[2]);
-    if (temp == -1) {
-	return -1;
-    }
-    options->create_if_missing = temp;
-    
-    //Set error_if_exists
-    temp = get_bool(env, options_array[3]);
-    if (temp == -1) {
-	return -1;
-    }
-    options->error_if_exists = temp;
-
-    //Set write_buffer_size
-    if (!enif_get_int(env, options_array[7], &temp)){
-	return -1;
-    }
-    options->write_buffer_size = temp * 1048576; /*(1024 * 1024)(MB)*/
-    
-    //Set max_open_files
-    if (!enif_get_int(env, options_array[8], &temp)){
-	return -1;
-    }
-    options->max_open_files = temp;
-
-    return 0;
-}
-
 int init_readoptions(ErlNifEnv* env, const ERL_NIF_TERM* readoptions_array, rocksdb::ReadOptions **_readoptions) {
     int temp;
     rocksdb::ReadOptions *readoptions = new rocksdb::ReadOptions;
     *_readoptions = readoptions;
 
-    /* 0. rocksdb_options,
+    /* Representation of erlang tuple:
+    // 0. rocksdb_options,
     // 1. verify_checksums,
     // 2. fill_cache,
-    // 3. snapshot*/
+    // 3. snapshot,
+    // 4. iterate_upper_bound,
+    // 5. read_tier,
+    // 6. tailing,
+    // 7. managed
+    */
     
     //Set verify_checksums
     temp = get_bool(env, readoptions_array[1]);
@@ -134,6 +84,26 @@ int init_readoptions(ErlNifEnv* env, const ERL_NIF_TERM* readoptions_array, rock
 	readoptions->fill_cache = temp;
     }
     return 0;
+
+    //Set tailing
+    temp = get_bool(env, readoptions_array[6]);
+    if (temp == -1) {
+	return -1;
+    }
+    else{
+	readoptions->tailing = temp;
+    }
+    return 0;
+
+    //Set managed
+    temp = get_bool(env, readoptions_array[7]);
+    if (temp == -1) {
+	return -1;
+    }
+    else{
+	readoptions->managed = temp;
+    }
+    return 0;
 }
 
 int init_writeoptions(ErlNifEnv* env, const ERL_NIF_TERM* writeoptions_array, rocksdb::WriteOptions **_writeoptions) {
@@ -141,8 +111,13 @@ int init_writeoptions(ErlNifEnv* env, const ERL_NIF_TERM* writeoptions_array, ro
     rocksdb::WriteOptions *writeoptions = new rocksdb::WriteOptions;
     *_writeoptions = writeoptions;
     
-    /* 0. rocksdb_writeoptions
-    // 1. sync*/
+    /* Representation of erlang tuple:
+    // 0. rocksdb_writeoptions
+    // 1. sync,
+    // 2. disableWAL,
+    // 3. ignore_missing_column_families,
+    // 4. no_slowdown
+    */
     
     //Set sync
     temp = get_bool(env, writeoptions_array[1]);
@@ -151,6 +126,33 @@ int init_writeoptions(ErlNifEnv* env, const ERL_NIF_TERM* writeoptions_array, ro
     }
     else{
 	writeoptions->sync = temp;
+    }
+
+    //Set disableWAL
+    temp = get_bool(env, writeoptions_array[2]);
+    if (temp == -1) {
+	return -1;
+    }
+    else{
+	writeoptions->disableWAL = temp;
+    }
+
+    //Set ignore_missing_column_families,
+    temp = get_bool(env, writeoptions_array[3]);
+    if (temp == -1) {
+	return -1;
+    }
+    else{
+	writeoptions->ignore_missing_column_families = temp;
+    }
+
+    //Set no_slowdown
+    temp = get_bool(env, writeoptions_array[4]);
+    if (temp == -1) {
+	return -1;
+    }
+    else{
+	writeoptions->no_slowdown = temp;
     }
     return 0;
 }
@@ -176,10 +178,46 @@ extern ERL_NIF_TERM make_status_tuple(ErlNifEnv* env, rocksdb::Status status){
     else if(status.IsIOError()){
 	type = "io_error";
     }
-    else{
-	type = "unspecified";
+    else if(status.IsInvalidArgument()){
+	type = "invalid_argument";
     }
-    const char* stString = status.ToString().c_str();
+    else if(status.IsMergeInProgress()){
+	type = "merge_in_progress";
+    }
+    else if(status.IsIncomplete()){
+	type = "incomplete";
+    }
+    else if(status.IsShutdownInProgress()){
+	type = "shutdown_in_progress";
+    }
+    else if(status.IsTimedOut()){
+	type = "timed_out";
+    }
+    else if(status.IsAborted()){
+	type = "aborted";
+    }
+    else if(status.IsLockLimit()){
+	type = "lock_limit";
+    }
+    else if(status.IsBusy()){
+	type = "busy";
+    }
+    else if(status.IsDeadlock()){
+	type = "deadlock";
+    }
+    else if(status.IsExpired()){
+	type = "expired";
+    }
+    else if(status.IsTryAgain()){
+	type = "try_again";
+    }
+    else if(status.IsNoSpace()){
+	type = "no_space";
+    }
+    else{
+	type = status.ToString().c_str();
+    }
+    //const char* stString = status.ToString().c_str();
     return enif_make_tuple2(env, enif_make_atom(env, "error"),
 			    enif_make_atom(env, type));
 }

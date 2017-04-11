@@ -16,4 +16,3 @@ else
 	export INSTALL_PATH="."
 	(cd ${ROCKSDB_DIR} && make shared_lib)
 fi
-

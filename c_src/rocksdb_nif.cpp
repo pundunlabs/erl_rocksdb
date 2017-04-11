@@ -1,11 +1,19 @@
+#include "rocksdb/c.h"
+#include "options/options_parser.h"
+#include "options/options_helper.h"
+#include "rocksdb/convenience.h"
+#include "util/string_util.h"
+#include "util/sync_point.h"
 
+#include "port/port.h"
 #include "rocksdb_nif.h"
 #include <string>
 
 #include <iostream>
 #include <vector>
+#include <unordered_map>  //std::unordered_map
 
-namespace { /* anonymous namespace starts */
+namespace  { /* anonymous namespace starts */
 
 ErlNifResourceFlags resource_flags = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
 
@@ -419,22 +427,44 @@ ERL_NIF_TERM write_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 /*Resource making*/
 ERL_NIF_TERM options_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     ERL_NIF_TERM term;
-    int arity;
-    const ERL_NIF_TERM* options_array;
-    int result;
-    opt_obj_resource *opts;
-    rocksdb::Options *options = NULL;
+    /*kvl: the pointer to list of key/value pairs passed from erlang*/
+    ERL_NIF_TERM kvl = argv[1];
+    unsigned int kvl_len;
+    ErlNifBinary keybin, valuebin;
+    ERL_NIF_TERM head, tail;
+    const ERL_NIF_TERM* tuple;
 
-    if (argc != 1 || !enif_get_tuple(env, argv[0], &arity, &options_array)) {
+    int arity;
+    opt_obj_resource *opts;
+    rocksdb::DBOptions *options = NULL;
+
+    if (argc != 1 || !enif_get_list_length(env, kvl, &kvl_len)) {
 	return enif_make_badarg(env);
     }
 
+    unordered_map<string, string> db_options_map;
+    db_options_map.reserve(kvl_len);
+
+    while(enif_get_list_cell(env, kvl, &head, &tail)){
+	if(!enif_get_tuple(env, head, &arity, &tuple)) {
+	    return enif_make_badarg(env);
+	}
+	if(arity != 2 || !enif_inspect_binary(env, tuple[0], &keybin)) {
+	    return enif_make_badarg(env);
+	}
+	if(!enif_inspect_binary(env, tuple[1], &valuebin)) {
+	    return enif_make_badarg(env);
+	}
+	pair<string, string> p ((const char*)keybin.data, (const char*)keybin.data);
+
+	db_options_map.insert( p );
+    }
+    rocksdb::Status status = rocksdb::GetDBOptionsFromMap(rocksdb::DBOptions(), db_options_map, options);
     opts = (opt_obj_resource*) enif_alloc_resource(optionResource, sizeof(opt_obj_resource));
-    result = init_options(env, options_array, &options);
     opts->object = options;
 
-    /* if result is 0 then return {ok, term} */
-    if (result == 0) {
+    /* if status is OK then return {ok, term} */
+    if (status.ok()) {
 	term = enif_make_resource(env, opts);
 	enif_release_resource(opts);
 	return enif_make_tuple2(env, atom_ok, term);

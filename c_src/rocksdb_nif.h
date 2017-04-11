@@ -4,10 +4,13 @@
 
 #include <mutex>          // std::mutex
 #include <unordered_set>  //std::unordered_set
+
 #include "rocksdb/db.h"
+
 #include "rocksdb/comparator.h"
-#include "descendingcomparator.h"
 #include "rocksdb/write_batch.h"
+
+#include "descendingcomparator.h"
 #include "erl_nif.h"
 
 #define MAXPATHLEN       255
