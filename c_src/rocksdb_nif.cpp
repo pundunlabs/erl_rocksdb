@@ -125,10 +125,6 @@ ERL_NIF_TERM resource_test_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv
 
     void* db_ptr = enif_alloc_resource(dbResource, 1024);
 
-    // //rocksdb::DB* db;
-    // rocksdb::Options options; 
-    // options.create_if_missing = true;
-    // rocksdb::Status status = rocksdb::DB::Open(options, "/tmp/testdb", &db);
     term = enif_make_resource(env, db_ptr);
 
     enif_release_resource(db_ptr);
@@ -427,41 +423,49 @@ ERL_NIF_TERM write_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 /*Resource making*/
 ERL_NIF_TERM options_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     ERL_NIF_TERM term;
+
     /*kvl: the pointer to list of key/value pairs passed from erlang*/
-    ERL_NIF_TERM kvl = argv[1];
+    ERL_NIF_TERM kvl = argv[0];
     unsigned int kvl_len;
-    ErlNifBinary keybin, valuebin;
+    char key[MAXPATHLEN];
+    char value[MAXPATHLEN];
+
     ERL_NIF_TERM head, tail;
     const ERL_NIF_TERM* tuple;
-
     int arity;
+
     opt_obj_resource *opts;
-    rocksdb::DBOptions *options = NULL;
+    rocksdb::Options options;
+
+    cout << "argc: " << argc << "\n" << endl;
 
     if (argc != 1 || !enif_get_list_length(env, kvl, &kvl_len)) {
 	return enif_make_badarg(env);
     }
+
+    cout << "kvl_len: " << kvl_len << "\n" << endl;
 
     unordered_map<string, string> db_options_map;
     db_options_map.reserve(kvl_len);
 
     while(enif_get_list_cell(env, kvl, &head, &tail)){
 	if(!enif_get_tuple(env, head, &arity, &tuple)) {
+	    cout << "tuple arity: " << arity << "\n" << endl;
 	    return enif_make_badarg(env);
 	}
-	if(arity != 2 || !enif_inspect_binary(env, tuple[0], &keybin)) {
+	if(arity != 2 || !enif_get_string(env, tuple[0], key, sizeof(key), ERL_NIF_LATIN1)) {
 	    return enif_make_badarg(env);
 	}
-	if(!enif_inspect_binary(env, tuple[1], &valuebin)) {
+	if(!enif_get_string(env, tuple[1], value, sizeof(value), ERL_NIF_LATIN1)) {
 	    return enif_make_badarg(env);
 	}
-	pair<string, string> p ((const char*)keybin.data, (const char*)keybin.data);
-
+	pair<string, string> p ((const char*)key, (const char*)value);
 	db_options_map.insert( p );
+        kvl = tail;
     }
-    rocksdb::Status status = rocksdb::GetDBOptionsFromMap(rocksdb::DBOptions(), db_options_map, options);
+    rocksdb::Status status = rocksdb::GetDBOptionsFromMap(options, db_options_map, &options);
     opts = (opt_obj_resource*) enif_alloc_resource(optionResource, sizeof(opt_obj_resource));
-    opts->object = options;
+    opts->object = &options;
 
     /* if status is OK then return {ok, term} */
     if (status.ok()) {

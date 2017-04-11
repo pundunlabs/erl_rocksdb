@@ -75,7 +75,8 @@ init() ->
 %% Returns {ok, DB} where DB is an NIF Resource, or {error, Reason}.
 %% @end
 %%--------------------------------------------------------------------
--spec open_db(Options :: options(), Path :: string()) -> {ok, DB :: db()} | {error, Reason :: any()}.
+-spec open_db(Options :: options(), Path :: string()) ->
+    {ok, DB :: db()} | {error, Reason :: any()}.
 open_db(_options, _Path)->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -83,7 +84,8 @@ open_db(_options, _Path)->
 %% @doc Close a rocksdb database that is referenced by provided NIF Resource, DB.
 %% @end
 %%--------------------------------------------------------------------
--spec close_db(DB :: db()) -> ok | {error, Reason :: any()}.
+-spec close_db(DB :: db()) ->
+    ok | {error, Reason :: any()}.
 close_db(_db)->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -92,7 +94,8 @@ close_db(_db)->
 %% Operation performed using provided ReadOptions NIF Resource.
 %% @end
 %%--------------------------------------------------------------------
--spec get(DB :: db(), ReadOptions :: readoptions(), Key :: key()) -> {ok, value()} | {error, Reason :: any()}.
+-spec get(DB :: db(), ReadOptions :: readoptions(), Key :: key()) ->
+    {ok, value()} | {error, Reason :: any()}.
 get(_db, _readoptions, _Key)->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -101,7 +104,9 @@ get(_db, _readoptions, _Key)->
 %% Operation performed using provided WriteOptions NIF Resource.
 %% @end
 %%--------------------------------------------------------------------
--spec put(DB :: db(), WriteOptions :: writeoptions(), Key :: key(), Value :: value()) -> ok | {error, Reason :: any()}.
+-spec put(DB :: db(), WriteOptions :: writeoptions(),
+	  Key :: key(), Value :: value()) ->
+    ok | {error, Reason :: any()}.
 put(_db, _writeoptions, _Key, _Value)->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -110,7 +115,8 @@ put(_db, _writeoptions, _Key, _Value)->
 %% Operation performed using provided WriteOptions NIF Resource.
 %% @end
 %%--------------------------------------------------------------------
--spec delete(DB :: db(), WriteOptions :: writeoptions(), Key :: key()) -> ok | {error, Reason :: any()}.
+-spec delete(DB :: db(), WriteOptions :: writeoptions(), Key :: key()) ->
+    ok | {error, Reason :: any()}.
 delete(_db, _writeoptions, _Key)->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -119,7 +125,8 @@ delete(_db, _writeoptions, _Key)->
 %% Operation performed using provided WriteOptions NIF Resource.
 %% @end
 %%--------------------------------------------------------------------
--spec write(DB :: db(), WriteOptions :: writeoptions(), DeleteKeys :: [key()], PutKeyValuePairs :: [{key(), value()}]) -> ok | {error, Reason :: any()}.
+-spec write(DB :: db(), WriteOptions :: writeoptions(), DeleteKeys :: [key()], PutKeyValuePairs :: [{key(), value()}]) ->
+    ok | {error, Reason :: any()}.
 write(_db, _writeoptions, _Delete_Ks, _Put_KVs)->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -130,7 +137,8 @@ write(_db, _writeoptions, _Delete_Ks, _Put_KVs)->
 %% This resource can be used for first arity in open_db/2 function.
 %% @end
 %%--------------------------------------------------------------------
--spec options(RocksdbOptions :: #rocksdb_options{}) -> {ok, options()} | {error, Reason :: any()}.
+-spec options(RocksdbOptions :: [{string(), string()}]) ->
+    {ok, options()} | {error, Reason :: any()}.
 options(_rocksdb_options_record) ->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -139,7 +147,8 @@ options(_rocksdb_options_record) ->
 %% This resource can be used for second arity in get/3 function.
 %% @end
 %%--------------------------------------------------------------------
--spec readoptions(RocksdbReadOptions :: #rocksdb_readoptions{}) -> {ok, readoptions()} | {error, Reason :: any()}.
+-spec readoptions(RocksdbReadOptions :: #rocksdb_readoptions{}) ->
+    {ok, readoptions()} | {error, Reason :: any()}.
 readoptions(_rocksdb_readoptions_record) ->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -148,7 +157,8 @@ readoptions(_rocksdb_readoptions_record) ->
 %% This resource can be used for second arity in put/4. delete/3, write/4 functions.
 %% @end
 %%--------------------------------------------------------------------
--spec writeoptions(RocksdbWriteOptions :: #rocksdb_writeoptions{}) -> {ok, writeoptions()} | {error, Reason :: any()}.
+-spec writeoptions(RocksdbWriteOptions :: #rocksdb_writeoptions{}) ->
+    {ok, writeoptions()} | {error, Reason :: any()}.
 writeoptions(_rocksdb_writeoptions_record) ->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -157,7 +167,8 @@ writeoptions(_rocksdb_writeoptions_record) ->
 %% Returns ok or {error, Reason}.
 %% @end
 %%--------------------------------------------------------------------
--spec destroy_db(Path :: string(), Options :: options()) -> ok | {error, Reason :: any()}.
+-spec destroy_db(Path :: string(), Options :: options()) ->
+    ok | {error, Reason :: any()}.
 destroy_db(_Path, _Options)->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -166,7 +177,8 @@ destroy_db(_Path, _Options)->
 %% Returns ok or {error, Reason}.
 %% @end
 %%--------------------------------------------------------------------
--spec repair_db(Path :: string(), Options :: options()) -> ok | {error, Reason :: any()}.
+-spec repair_db(Path :: string(), Options :: options()) ->
+    ok | {error, Reason :: any()}.
 repair_db(_Name, _Options)->
     erlang:nif_error(nif_library_not_loaded).
 
@@ -188,7 +200,7 @@ approximate_sizes(_DB, _Ranges) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec approximate_size(DB :: db(), ReadOptions :: readoptions()) ->
-{ok, Bytes :: integer()} | {error, Reason :: any()}.
+    {ok, Bytes :: integer()} | {error, Reason :: any()}.
 approximate_size(_DB, _ReadOptions) ->
     erlang:nif_error(nif_library_not_loaded).
 
