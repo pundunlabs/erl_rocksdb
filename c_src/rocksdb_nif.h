@@ -35,6 +35,8 @@ typedef struct _it_obj_resource {
   void *object;
 } it_obj_resource;
 
+extern void init_lib_atoms(ErlNifEnv* env);
+
 extern void delete_db(db_obj_resource* rdb);
 
 extern void delete_rit(it_obj_resource* rit);
@@ -42,7 +44,7 @@ extern void delete_rit(it_obj_resource* rit);
 extern rocksdb::DB* open_db(rocksdb::Options* options, char* path, rocksdb::Status* status);
 
 
-extern int init_options(ErlNifEnv* env, const ERL_NIF_TERM* options_array, rocksdb::Options **options);
+extern int fix_options(unordered_map<string, string>* map, rocksdb::Options* opts);
 
 extern int init_readoptions(ErlNifEnv* env, const ERL_NIF_TERM* readoptions_array, rocksdb::ReadOptions **readoptions);
 

@@ -6,20 +6,56 @@
 using namespace rocksdb;
 
 namespace {
-  DescendingComparator descendingcomparator;
+    DescendingComparator descendingcomparator;
 
-  int get_bool(ErlNifEnv* env, ERL_NIF_TERM term)
-  {
-      char buf[6];
+    /* atoms */
+    ERL_NIF_TERM atom_error;
+    ERL_NIF_TERM atom_not_found;
+    ERL_NIF_TERM atom_corruption;
+    //ERL_NIF_TERM atom_io_error;
+    ERL_NIF_TERM atom_invalid_argument;
+    ERL_NIF_TERM atom_merge_in_progress;
+    ERL_NIF_TERM atom_incomplete;
+    ERL_NIF_TERM atom_shutdown_in_progress;
+    ERL_NIF_TERM atom_timed_out;
+    ERL_NIF_TERM atom_aborted;
+    ERL_NIF_TERM atom_lock_limit;
+    ERL_NIF_TERM atom_busy;
+    ERL_NIF_TERM atom_deadlock;
+    ERL_NIF_TERM atom_expired;
+    ERL_NIF_TERM atom_try_again;
+    ERL_NIF_TERM atom_no_space;
 
-      if(enif_get_atom(env, term, buf, sizeof(buf), ERL_NIF_LATIN1)){
-	  if (strcmp("false", buf) == 0)
-	      return 0;
-	  if (strcmp("true", buf) == 0)
-	      return 1;
-      }
-      return -1;
-  }
+    int get_bool(ErlNifEnv* env, ERL_NIF_TERM term)
+    {
+	char buf[6];
+
+	if(enif_get_atom(env, term, buf, sizeof(buf), ERL_NIF_LATIN1)){
+	    if (strcmp("false", buf) == 0)
+		return 0;
+	    if (strcmp("true", buf) == 0)
+		return 1;
+	}
+	return -1;
+    }
+}
+
+void init_lib_atoms(ErlNifEnv* env) {
+    atom_error = enif_make_atom(env, "error");
+    atom_not_found = enif_make_atom(env, "not_found");
+    atom_corruption = enif_make_atom(env, "corruption");
+    atom_invalid_argument = enif_make_atom(env, "invalid_argument");
+    atom_merge_in_progress = enif_make_atom(env, "merge_in_progress");
+    atom_incomplete = enif_make_atom(env, "incomplete");
+    atom_shutdown_in_progress = enif_make_atom(env, "shutdown_in_progress");
+    atom_timed_out = enif_make_atom(env, "timed_out");
+    atom_aborted = enif_make_atom(env, "aborted");
+    atom_lock_limit = enif_make_atom(env, "lock_limit");
+    atom_busy = enif_make_atom(env, "busy");
+    atom_deadlock = enif_make_atom(env, "deadlock");
+    atom_expired = enif_make_atom(env, "expired");
+    atom_try_again = enif_make_atom(env, "try_again");
+    atom_no_space = enif_make_atom(env, "no_space");
 }
 
 void delete_db(db_obj_resource* rdb){
@@ -48,6 +84,18 @@ void delete_rit(it_obj_resource* rit){
     delete it;
     rit->allocated = 0;
     rit->mtx->unlock();
+}
+
+int fix_options(unordered_map<string, string>* map, rocksdb::Options* opts) {
+    unordered_map<std::string,string>::const_iterator got = map->find ("comparator");
+    if ( got != map->end() ){
+	//found comparator option
+	if( got->second.compare("descending") == 0) {
+	    opts->comparator = &descendingcomparator;
+	}
+	map->erase("comparator");
+    }
+    return 0;
 }
 
 int init_readoptions(ErlNifEnv* env, const ERL_NIF_TERM* readoptions_array, rocksdb::ReadOptions **_readoptions) {
@@ -168,56 +216,56 @@ rocksdb::DB* open_db(rocksdb::Options* options, char* path, rocksdb::Status* sta
 }
 
 extern ERL_NIF_TERM make_status_tuple(ErlNifEnv* env, rocksdb::Status status){
-    const char* type;
+    ERL_NIF_TERM type;
     if(status.IsNotFound()){
-	type = "not_found";
+	type = atom_not_found;
     }
     else if(status.IsCorruption()){
-	type = "corruption";
+	type = atom_corruption;
     }
     else if(status.IsIOError()){
-	type = "io_error";
+	type = enif_make_string(env, status.ToString().c_str(), ERL_NIF_LATIN1);
+	//type = atom_io_error;
     }
     else if(status.IsInvalidArgument()){
-	type = "invalid_argument";
+	type = atom_invalid_argument;
     }
     else if(status.IsMergeInProgress()){
-	type = "merge_in_progress";
+	type = atom_merge_in_progress;
     }
     else if(status.IsIncomplete()){
-	type = "incomplete";
+	type = atom_incomplete;
     }
     else if(status.IsShutdownInProgress()){
-	type = "shutdown_in_progress";
+	type = atom_shutdown_in_progress;
     }
     else if(status.IsTimedOut()){
-	type = "timed_out";
+	type = atom_timed_out;
     }
     else if(status.IsAborted()){
-	type = "aborted";
+	type = atom_aborted;
     }
     else if(status.IsLockLimit()){
-	type = "lock_limit";
+	type = atom_lock_limit;
     }
     else if(status.IsBusy()){
-	type = "busy";
+	type = atom_busy;
     }
     else if(status.IsDeadlock()){
-	type = "deadlock";
+	type = atom_deadlock;
     }
     else if(status.IsExpired()){
-	type = "expired";
+	type = atom_expired;
     }
     else if(status.IsTryAgain()){
-	type = "try_again";
+	type = atom_try_again;
     }
     else if(status.IsNoSpace()){
-	type = "no_space";
+	type = atom_no_space;
     }
-    else{
-	type = status.ToString().c_str();
+    else {
+	type = enif_make_string(env, status.ToString().c_str(), ERL_NIF_LATIN1);
     }
     //const char* stString = status.ToString().c_str();
-    return enif_make_tuple2(env, enif_make_atom(env, "error"),
-			    enif_make_atom(env, type));
+    return enif_make_tuple2(env, atom_error, type);
 }

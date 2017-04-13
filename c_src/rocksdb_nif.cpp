@@ -76,6 +76,8 @@ int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info){
     atom_error	 = enif_make_atom(env, "error");
     atom_invalid = enif_make_atom(env, "invalid");
 
+    init_lib_atoms(env);
+
     return 0;
 }
 
@@ -435,22 +437,17 @@ ERL_NIF_TERM options_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     int arity;
 
     opt_obj_resource *opts;
-    rocksdb::Options options;
-
-    cout << "argc: " << argc << "\n" << endl;
+    rocksdb::Options *options = new rocksdb::Options;
 
     if (argc != 1 || !enif_get_list_length(env, kvl, &kvl_len)) {
 	return enif_make_badarg(env);
     }
-
-    cout << "kvl_len: " << kvl_len << "\n" << endl;
 
     unordered_map<string, string> db_options_map;
     db_options_map.reserve(kvl_len);
 
     while(enif_get_list_cell(env, kvl, &head, &tail)){
 	if(!enif_get_tuple(env, head, &arity, &tuple)) {
-	    cout << "tuple arity: " << arity << "\n" << endl;
 	    return enif_make_badarg(env);
 	}
 	if(arity != 2 || !enif_get_string(env, tuple[0], key, sizeof(key), ERL_NIF_LATIN1)) {
@@ -463,9 +460,10 @@ ERL_NIF_TERM options_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 	db_options_map.insert( p );
         kvl = tail;
     }
-    rocksdb::Status status = rocksdb::GetDBOptionsFromMap(options, db_options_map, &options);
+    fix_options(&db_options_map, options);
+    rocksdb::Status status = rocksdb::GetDBOptionsFromMap(rocksdb::Options(), db_options_map, options);
     opts = (opt_obj_resource*) enif_alloc_resource(optionResource, sizeof(opt_obj_resource));
-    opts->object = &options;
+    opts->object = options;
 
     /* if status is OK then return {ok, term} */
     if (status.ok()) {
