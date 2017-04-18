@@ -38,6 +38,26 @@ namespace {
 	}
 	return -1;
     }
+
+    void delete_db_default(db_obj_resource* rdb){
+	rocksdb::DB *db;
+	db = (rocksdb::DB*) rdb->object;
+	rdb->mtx->lock();
+	delete rdb->link_set;
+	delete db;
+	rdb->allocated = 0;
+	rdb->mtx->unlock();
+    }
+
+    void delete_db_with_ttl(db_obj_resource* rdb){
+	rocksdb::DBWithTTL *db;
+	db = (rocksdb::DBWithTTL*) rdb->object;
+	rdb->mtx->lock();
+	delete rdb->link_set;
+	delete db;
+	rdb->allocated = 0;
+	rdb->mtx->unlock();
+    }
 }
 
 void init_lib_atoms(ErlNifEnv* env) {
@@ -59,13 +79,12 @@ void init_lib_atoms(ErlNifEnv* env) {
 }
 
 void delete_db(db_obj_resource* rdb){
-    rocksdb::DB *db;
-    db = (rocksdb::DB*) rdb->object;
-    rdb->mtx->lock();
-    delete rdb->link_set;
-    delete db;
-    rdb->allocated = 0;
-    rdb->mtx->unlock();
+    if(rdb->type == DB_WITH_TTL){
+	delete_db_with_ttl( rdb );
+    }
+    else {
+	delete_db_default ( rdb);
+    }
 }
 
 void delete_rit(it_obj_resource* rit){
@@ -215,57 +234,127 @@ rocksdb::DB* open_db(rocksdb::Options* options, char* path, rocksdb::Status* sta
     return db;
 }
 
-extern ERL_NIF_TERM make_status_tuple(ErlNifEnv* env, rocksdb::Status status){
+rocksdb::DBWithTTL* open_db_with_ttl(rocksdb::Options* options, char* path, int32_t* ttl, rocksdb::Status* status) {
+    rocksdb::DBWithTTL* db;
+    string path_string(path);
+    bool read_only = false;
+    *status = rocksdb::DBWithTTL::Open(*options, path_string, &db, *ttl, read_only);
+    return db;
+}
+
+rocksdb::Status Get(db_obj_resource* rdb, rocksdb::ReadOptions* readoptions, rocksdb::Slice* key, string* value) {
+    rocksdb::Status status;
+    if (rdb->type == DB_WITH_TTL) {
+	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Get(*readoptions, *key, value);
+	return status;
+    } else {
+	status = static_cast<rocksdb::DB*>(rdb->object)->Get(*readoptions, *key, value);
+	return status;
+    }
+}
+
+rocksdb::Status Put(db_obj_resource* rdb, rocksdb::WriteOptions* writeoptions, rocksdb::Slice* key, rocksdb::Slice* value){
+    rocksdb::Status status;
+    if (rdb->type == DB_WITH_TTL) {
+	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Put(*writeoptions, *key, *value);
+	return status;
+    } else {
+	status = static_cast<rocksdb::DB*>(rdb->object)->Put(*writeoptions, *key, *value);
+	return status;
+    }
+}
+
+rocksdb::Status Delete(db_obj_resource* rdb, rocksdb::WriteOptions* writeoptions, rocksdb::Slice* key){
+    rocksdb::Status status;
+    if (rdb->type == DB_WITH_TTL) {
+	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Delete(*writeoptions, *key);
+	return status;
+    } else {
+	status = static_cast<rocksdb::DB*>(rdb->object)->Delete(*writeoptions, *key);
+	return status;
+    }
+}
+
+rocksdb::Status Write(db_obj_resource* rdb, rocksdb::WriteOptions* writeoptions, rocksdb::WriteBatch* batch){
+    rocksdb::Status status;
+    if (rdb->type == DB_WITH_TTL) {
+	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Write(*writeoptions, batch);
+	return status;
+    } else {
+	status = static_cast<rocksdb::DB*>(rdb->object)->Write(*writeoptions, batch);
+	return status;
+    }
+}
+
+void GetApproximateSizes(db_obj_resource* rdb, rocksdb::Range* ranges, unsigned int ranges_size, uint64_t* size){
+    if (rdb->type == DB_WITH_TTL) {
+	static_cast<rocksdb::DBWithTTL*>(rdb->object)->GetApproximateSizes(ranges, ranges_size, size);
+    } else {
+	static_cast<rocksdb::DB*>(rdb->object)->GetApproximateSizes(ranges, ranges_size, size);
+    }
+}
+
+rocksdb::Iterator* NewIterator(db_obj_resource* rdb, rocksdb::ReadOptions* readoptions){
+    if (rdb->type == DB_WITH_TTL) {
+	rocksdb::Iterator* it = static_cast<rocksdb::DBWithTTL*>(rdb->object)->NewIterator(*readoptions);
+	return it;
+    } else {
+	rocksdb::Iterator* it = static_cast<rocksdb::DB*>(rdb->object)->NewIterator(*readoptions);
+	return it;
+    }
+}
+
+ERL_NIF_TERM make_status_tuple(ErlNifEnv* env, rocksdb::Status* status){
     ERL_NIF_TERM type;
-    if(status.IsNotFound()){
+    if(status->IsNotFound()){
 	type = atom_not_found;
     }
-    else if(status.IsCorruption()){
+    else if(status->IsCorruption()){
 	type = atom_corruption;
     }
-    else if(status.IsIOError()){
-	type = enif_make_string(env, status.ToString().c_str(), ERL_NIF_LATIN1);
+    else if(status->IsIOError()){
+	type = enif_make_string(env, status->ToString().c_str(), ERL_NIF_LATIN1);
 	//type = atom_io_error;
     }
-    else if(status.IsInvalidArgument()){
+    else if(status->IsInvalidArgument()){
 	type = atom_invalid_argument;
     }
-    else if(status.IsMergeInProgress()){
+    else if(status->IsMergeInProgress()){
 	type = atom_merge_in_progress;
     }
-    else if(status.IsIncomplete()){
+    else if(status->IsIncomplete()){
 	type = atom_incomplete;
     }
-    else if(status.IsShutdownInProgress()){
+    else if(status->IsShutdownInProgress()){
 	type = atom_shutdown_in_progress;
     }
-    else if(status.IsTimedOut()){
+    else if(status->IsTimedOut()){
 	type = atom_timed_out;
     }
-    else if(status.IsAborted()){
+    else if(status->IsAborted()){
 	type = atom_aborted;
     }
-    else if(status.IsLockLimit()){
+    else if(status->IsLockLimit()){
 	type = atom_lock_limit;
     }
-    else if(status.IsBusy()){
+    else if(status->IsBusy()){
 	type = atom_busy;
     }
-    else if(status.IsDeadlock()){
+    else if(status->IsDeadlock()){
 	type = atom_deadlock;
     }
-    else if(status.IsExpired()){
+    else if(status->IsExpired()){
 	type = atom_expired;
     }
-    else if(status.IsTryAgain()){
+    else if(status->IsTryAgain()){
 	type = atom_try_again;
     }
-    else if(status.IsNoSpace()){
+    else if(status->IsNoSpace()){
 	type = atom_no_space;
     }
     else {
-	type = enif_make_string(env, status.ToString().c_str(), ERL_NIF_LATIN1);
+	type = enif_make_string(env, status->ToString().c_str(), ERL_NIF_LATIN1);
     }
-    //const char* stString = status.ToString().c_str();
+    //const char* stString = status->ToString().c_str();
     return enif_make_tuple2(env, atom_error, type);
 }

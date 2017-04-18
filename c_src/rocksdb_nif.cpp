@@ -166,6 +166,7 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 	/*set will hold the iterators for this db*/
 	rdb->link_set = set;
 	rdb->mtx = mtx;
+	rdb->type = DB_DEFAULT;
 
 	if(status.ok()){
 	    db_term = enif_make_resource(env, rdb);
@@ -175,7 +176,61 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 	}
 	else{
 	    enif_release_resource(rdb);
-	    ERL_NIF_TERM status_tuple = make_status_tuple(env, status);
+	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
+	    return status_tuple;
+	}
+    }
+}
+
+ERL_NIF_TERM open_db_with_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char path[MAXPATHLEN];
+    rocksdb::Options* options;
+    opt_obj_resource* opts;
+    int int_ttl;
+    int32_t ttl;
+    /*get options resource*/
+    if (argc != 3 || !enif_get_resource(env, argv[0], optionResource, (void **)&opts)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "options"));
+    }
+
+    /*get path*/
+    if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) <1){
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "path"));
+    }
+
+    /*get ttl*/
+    if(enif_get_int(env, argv[2], &int_ttl) <1){
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "ttl"));
+    }
+    else{
+
+	unordered_set<void*> *set = new unordered_set<void*>;
+	mutex *mtx = new mutex;
+
+	options = (rocksdb::Options*) opts->object;
+
+	ERL_NIF_TERM db_term;
+	/* ERL_NIF_TERM status_term; */
+
+	db_obj_resource* rdb = (db_obj_resource *) enif_alloc_resource(dbResource, sizeof(db_obj_resource));
+	ttl = (int32_t)int_ttl;
+	rocksdb::Status status;
+	rdb->object = open_db_with_ttl(options, path, &ttl, &status);
+
+	/*set will hold the iterators for this db*/
+	rdb->link_set = set;
+	rdb->mtx = mtx;
+	rdb->type = DB_WITH_TTL;
+
+	if(status.ok()){
+	    db_term = enif_make_resource(env, rdb);
+	    enif_release_resource(rdb);
+	    /* resource now only owned by "Erlang" */
+	    return enif_make_tuple2(env, atom_ok, db_term);
+	}
+	else{
+	    enif_release_resource(rdb);
+	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
 	    return status_tuple;
 	}
     }
@@ -204,8 +259,7 @@ ERL_NIF_TERM close_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 }
 
 ERL_NIF_TERM get_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    db_obj_resource *re_db;
-    rocksdb::DB* db;
+    db_obj_resource *rdb;
     opt_obj_resource* ropts;
     rocksdb::ReadOptions* readoptions;
     ErlNifBinary binkey;
@@ -214,10 +268,9 @@ ERL_NIF_TERM get_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     ERL_NIF_TERM value_term;
 
     /* get db_ptr resource */
-    if (argc != 3 || !enif_get_resource(env, argv[0], dbResource, (void **) &re_db)) {
+    if (argc != 3 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
-    db = (rocksdb::DB*) re_db->object;
 
     /* get readoptions resource */
     if (!enif_get_resource(env, argv[1], readoptionResource, (void **) &ropts)) {
@@ -232,7 +285,7 @@ ERL_NIF_TERM get_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     }
 
     rocksdb::Slice key((const char*)binkey.data, (size_t) binkey.size);
-    rocksdb::Status status = db->Get(*readoptions, key, &value);
+    rocksdb::Status status = Get(rdb, readoptions, &key, &value);
 
     if (status.ok()) {
 	enif_alloc_binary(value.length(), &binvalue);
@@ -242,24 +295,22 @@ ERL_NIF_TERM get_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 	return enif_make_tuple2(env, atom_ok, value_term);
     }
     else {
-	ERL_NIF_TERM status_tuple = make_status_tuple(env, status);
+	ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
 	return status_tuple;
     }
 }
 
 ERL_NIF_TERM put_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    db_obj_resource *re_db;
-    rocksdb::DB *db;
+    db_obj_resource *rdb;
     opt_obj_resource* wopts;
     rocksdb::WriteOptions* writeoptions;
     ErlNifBinary binkey;
     ErlNifBinary binvalue;
 
     /* get db_ptr resource */
-    if (argc != 4 || !enif_get_resource(env, argv[0], dbResource, (void **) &re_db)) {
+    if (argc != 4 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
-    db = (rocksdb::DB*) re_db->object;
 
     /* get writeoptions resource */
     if (!enif_get_resource(env, argv[1], writeoptionResource, (void **) &wopts)) {
@@ -281,29 +332,27 @@ ERL_NIF_TERM put_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     rocksdb::Slice key((const char*)binkey.data, (size_t) binkey.size);
     rocksdb::Slice value((const char*)binvalue.data, (size_t) binvalue.size);
 
-    rocksdb::Status status = db->Put(*writeoptions, key, value);
+    rocksdb::Status status = Put(rdb, writeoptions, &key, &value);
 
     if (status.ok()) {
 	return atom_ok;
     }
     else {
-	ERL_NIF_TERM status_tuple = make_status_tuple(env, status);
+	ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
 	return status_tuple;
     }
 }
 
 ERL_NIF_TERM delete_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    db_obj_resource *re_db;
-    rocksdb::DB* db;
+    db_obj_resource *rdb;
     opt_obj_resource* wopts;
     rocksdb::WriteOptions* writeoptions;
     ErlNifBinary binkey;
 
     /* get db_ptr resource */
-    if (argc != 3 || !enif_get_resource(env, argv[0], dbResource, (void **) &re_db)) {
+    if (argc != 3 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
-    db = (rocksdb::DB*) re_db->object;
 
     /* get writeoptions resource */
     if (!enif_get_resource(env, argv[1], writeoptionResource, (void **) &wopts)) {
@@ -318,20 +367,19 @@ ERL_NIF_TERM delete_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     }
 
     rocksdb::Slice key((const char*)binkey.data, (size_t) binkey.size);
-    rocksdb::Status status = db->Delete(*writeoptions, key);
+    rocksdb::Status status = Delete(rdb, writeoptions, &key);
 
     if (status.ok()) {
 	return atom_ok;
     }
     else {
-	ERL_NIF_TERM status_tuple = make_status_tuple(env, status);
+	ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
 	return status_tuple;
     }
 }
 
 ERL_NIF_TERM write_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    db_obj_resource *re_db;
-    rocksdb::DB *db;
+    db_obj_resource *rdb;
     opt_obj_resource* wopts;
     rocksdb::WriteOptions *writeoptions;
     unsigned int delete_keys_size;
@@ -343,10 +391,9 @@ ERL_NIF_TERM write_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     ERL_NIF_TERM put_list = argv[3];
 
     /*get db_ptr resource*/
-    if (argc != 4 || !enif_get_resource(env, argv[0], dbResource, (void **) &re_db)) {
+    if (argc != 4 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
-    db = (rocksdb::DB*) re_db->object;
 
     /* get writeoptions resource */
     if (!enif_get_resource(env, argv[1], writeoptionResource, (void **) &wopts)) {
@@ -411,13 +458,13 @@ ERL_NIF_TERM write_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 	put_values.pop_back();
     }
 
-    rocksdb::Status status = db->Write(*writeoptions, &batch);
+    rocksdb::Status status = Write(rdb, writeoptions, &batch);
 
     if(status.ok()){
 	return atom_ok;
     }
     else{
-	ERL_NIF_TERM status_tuple = make_status_tuple(env, status);
+	ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
 	return status_tuple;
     }
 }
@@ -553,7 +600,7 @@ ERL_NIF_TERM destroy_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 	return atom_ok;
     }
 
-    ERL_NIF_TERM status_tuple = make_status_tuple(env, status);
+    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
     return status_tuple;
 }
 
@@ -573,9 +620,10 @@ ERL_NIF_TERM repair_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) 
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "options"));
     }
     options = (rocksdb::Options *) opts->object;
-    rocksdb::Status status = RepairDB(path, *options);
+    rocksdb::Status* status;
+    *status = RepairDB(path, *options);
 
-    if (status.ok())
+    if (status->ok())
 	return atom_ok;
 
     ERL_NIF_TERM status_tuple = make_status_tuple(env, status);
@@ -583,7 +631,6 @@ ERL_NIF_TERM repair_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) 
 }
 
 ERL_NIF_TERM approximate_sizes_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    rocksdb::DB *db;
     db_obj_resource *rdb;
     unsigned int ranges_size;
 
@@ -596,7 +643,6 @@ ERL_NIF_TERM approximate_sizes_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
     if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
-    db = (rocksdb::DB*) rdb->object;
 
     /*get ranges resource*/
     if (!enif_get_list_length(env, range_list, &ranges_size)) {
@@ -625,7 +671,7 @@ ERL_NIF_TERM approximate_sizes_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
 
     uint64_t sizes[ranges_size];
 
-    db->GetApproximateSizes(&ranges[0], ranges_size, sizes);
+    GetApproximateSizes(rdb, &ranges[0], ranges_size, sizes);
 
     ERL_NIF_TERM size_list = enif_make_list(env, 0);
     while (ranges_size > 0) {
@@ -637,7 +683,6 @@ ERL_NIF_TERM approximate_sizes_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
 }
 
 ERL_NIF_TERM approximate_size_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    rocksdb::DB* db;
     opt_obj_resource* ropts;
     rocksdb::ReadOptions* readoptions;
     db_obj_resource *rdb;
@@ -646,7 +691,6 @@ ERL_NIF_TERM approximate_size_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM a
     if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
-    db = (rocksdb::DB*) rdb->object;
 
     /*get readoptions resource*/
     if (!enif_get_resource(env, argv[1], readoptionResource, (void **) &ropts)) {
@@ -654,7 +698,7 @@ ERL_NIF_TERM approximate_size_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM a
     }
     readoptions = (rocksdb::ReadOptions *) ropts->object;
 
-    rocksdb::Iterator* it = db->NewIterator(*readoptions);
+    rocksdb::Iterator* it = NewIterator(rdb, readoptions);
     it->SeekToFirst();
     if ( it->Valid() ){
 	string start = it->key().ToString();
@@ -664,7 +708,7 @@ ERL_NIF_TERM approximate_size_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM a
 	ranges[0] = rocksdb::Range(start, end);
 	uint64_t size[1];
 
-	db->GetApproximateSizes(ranges, 1, size);
+	GetApproximateSizes(rdb, ranges, 1, size);
 
 	delete it;
 	return enif_make_tuple2(env, atom_ok,
@@ -677,7 +721,6 @@ ERL_NIF_TERM approximate_size_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM a
 }
 
 ERL_NIF_TERM read_range_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    rocksdb::DB *db;
     opt_obj_resource *opts;
     rocksdb::Options *options;
     opt_obj_resource *ropts;
@@ -693,7 +736,6 @@ ERL_NIF_TERM read_range_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if (argc != 5 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
-    db = (rocksdb::DB*) rdb->object;
 
     /*get options resource*/
     if (!enif_get_resource(env, argv[1], optionResource, (void **) &opts)) {
@@ -729,7 +771,7 @@ ERL_NIF_TERM read_range_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     rocksdb::Slice limit((const char*)bin.data, (size_t) bin.size);
 
     /*Create rocksdb iterator*/
-    rocksdb::Iterator* it = db->NewIterator(*readoptions);
+    rocksdb::Iterator* it = NewIterator(rdb, readoptions);
 
     /*Create empty list to store key/value pairs*/
     //ERL_NIF_TERM kvl = enif_make_list(env, 0);
@@ -781,7 +823,6 @@ ERL_NIF_TERM read_range_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM read_range_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    rocksdb::DB *db;
     opt_obj_resource *ropts;
     rocksdb::ReadOptions *readoptions;
     db_obj_resource *rdb;
@@ -794,7 +835,6 @@ ERL_NIF_TERM read_range_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     if (argc != 4 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
-    db = (rocksdb::DB*) rdb->object;
 
     /*get readoptions resource*/
     if (!enif_get_resource(env, argv[1], readoptionResource, (void **) &ropts)) {
@@ -815,7 +855,7 @@ ERL_NIF_TERM read_range_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     rocksdb::Slice start((const char*)binkey.data, (size_t) binkey.size);
 
     /*Create rocksdb iterator*/
-    rocksdb::Iterator* it = db->NewIterator(*readoptions);
+    rocksdb::Iterator* it = NewIterator(rdb, readoptions);
 
     /*Create empty list to store key/value pairs*/
     ERL_NIF_TERM kvl;
@@ -853,7 +893,6 @@ ERL_NIF_TERM read_range_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 }
 
 ERL_NIF_TERM iterator_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    rocksdb::DB *db;
     opt_obj_resource *ropts;
     rocksdb::ReadOptions *readoptions;
     rocksdb::Iterator *it;
@@ -868,7 +907,6 @@ ERL_NIF_TERM iterator_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
-    db = (rocksdb::DB*) rdb->object;
 
     /* get readoptions resource */
     if (!enif_get_resource(env, argv[1], readoptionResource, (void **) &ropts)) {
@@ -879,7 +917,7 @@ ERL_NIF_TERM iterator_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     /*Create rocksdb iterator*/
     rit = (it_obj_resource*)  enif_alloc_resource(iteratorResource, sizeof(it_obj_resource));
 
-    it = db->NewIterator(*readoptions);
+    it = NewIterator(rdb, readoptions);
     rit->mtx = mtx;
     rit->allocated = 1;
     rit->object = it;
@@ -894,12 +932,13 @@ ERL_NIF_TERM iterator_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     it_term = enif_make_resource(env, rit);
     enif_release_resource(rit);
 
-    if(it->status().ok()){
+    rocksdb::Status status = it->status();
+    if(status.ok()){
 	/* resource now only owned by "Erlang" */
 	return enif_make_tuple2(env, atom_ok, it_term);
     }
 
-    ERL_NIF_TERM status_tuple = make_status_tuple(env, it->status());
+    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
     return status_tuple;
 }
 
@@ -1117,6 +1156,7 @@ ERL_NIF_TERM prev_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 
 ErlNifFunc nif_funcs[] = {
     {"open_db", 2, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"open_db_with_ttl", 3, open_db_with_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"close_db", 1, close_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"get", 3, get_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"put", 4, put_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},

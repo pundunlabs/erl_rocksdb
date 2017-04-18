@@ -6,14 +6,17 @@
 #include <unordered_set>  //std::unordered_set
 
 #include "rocksdb/db.h"
-
+#include "rocksdb/utilities/db_ttl.h"
 #include "rocksdb/comparator.h"
 #include "rocksdb/write_batch.h"
 
 #include "descendingcomparator.h"
 #include "erl_nif.h"
 
-#define MAXPATHLEN       255
+#define MAXPATHLEN  255
+
+#define DB_DEFAULT	0
+#define DB_WITH_TTL	1
 
 using namespace std;
 
@@ -26,6 +29,7 @@ typedef struct _db_obj_resource {
   unordered_set<void*> *link_set;
   mutex *mtx;
   void *object;
+  char type;
 } db_obj_resource;
 
 typedef struct _it_obj_resource {
@@ -43,6 +47,7 @@ extern void delete_rit(it_obj_resource* rit);
 
 extern rocksdb::DB* open_db(rocksdb::Options* options, char* path, rocksdb::Status* status);
 
+extern rocksdb::DBWithTTL* open_db_with_ttl(rocksdb::Options* options, char* path, int32_t* ttl, rocksdb::Status* status);
 
 extern int fix_options(unordered_map<string, string>* map, rocksdb::Options* opts);
 
@@ -52,5 +57,17 @@ extern int init_writeoptions(ErlNifEnv* env, const ERL_NIF_TERM* writeoptions_ar
 
 extern void init_db(rocksdb::DB* db);
 
-extern ERL_NIF_TERM make_status_tuple(ErlNifEnv* env, rocksdb::Status status);
+extern rocksdb::Status Get(db_obj_resource* rdb, rocksdb::ReadOptions* readoptions, rocksdb::Slice* key, string* value);
+
+extern rocksdb::Status Put(db_obj_resource* rdb, rocksdb::WriteOptions* writeoptions, rocksdb::Slice* key, rocksdb::Slice* value);
+
+extern rocksdb::Status Delete(db_obj_resource* rdb, rocksdb::WriteOptions* writeoptions, rocksdb::Slice* key);
+
+extern rocksdb::Status Write(db_obj_resource* rdb, rocksdb::WriteOptions* writeoptions, rocksdb::WriteBatch* batch);
+
+extern void GetApproximateSizes(db_obj_resource* rdb, rocksdb::Range* ranges, unsigned int ranges_size, uint64_t* size);
+
+extern rocksdb::Iterator* NewIterator(db_obj_resource* rdb, rocksdb::ReadOptions* readoptions);
+
+extern ERL_NIF_TERM make_status_tuple(ErlNifEnv* env, rocksdb::Status* status);
 #endif /*LEVELDB_NIF_H*/
