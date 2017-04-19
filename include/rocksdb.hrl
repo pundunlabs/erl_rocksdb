@@ -540,7 +540,7 @@
     %% system call followed by "fdatasync()".
     %%
     %% Default: false
-    sync = true :: boolean(), %%true | false
+    sync = false :: boolean(), %%true | false
 
     %% If true, writes will not first go to the write ahead log,
     %% and the write may got lost after a crash.
