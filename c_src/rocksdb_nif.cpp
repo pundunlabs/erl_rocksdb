@@ -1154,6 +1154,17 @@ ERL_NIF_TERM prev_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     return enif_make_tuple2(env, atom_error, enif_make_atom(env, "invalid"));
 }
 
+ERL_NIF_TERM compact_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    db_obj_resource *rdb;
+
+    /* get db_ptr resource */
+    if (argc != 1 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+    CompactDB(rdb);
+    return atom_ok;
+}
+
 ErlNifFunc nif_funcs[] = {
     {"open_db", 2, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"open_db_with_ttl", 3, open_db_with_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -1182,6 +1193,8 @@ ErlNifFunc nif_funcs[] = {
     {"seek", 2, seek_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"next", 1, next_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"prev", 1, prev_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+
+    {"compact_db", 1, compact_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
     {"resource_test", 0, resource_test_nif}
 

@@ -7,6 +7,7 @@
 
 #include "rocksdb/db.h"
 #include "rocksdb/utilities/db_ttl.h"
+#include "rocksdb/compaction_filter.h"
 #include "rocksdb/comparator.h"
 #include "rocksdb/write_batch.h"
 
@@ -68,6 +69,8 @@ extern rocksdb::Status Write(db_obj_resource* rdb, rocksdb::WriteOptions* writeo
 extern void GetApproximateSizes(db_obj_resource* rdb, rocksdb::Range* ranges, unsigned int ranges_size, uint64_t* size);
 
 extern rocksdb::Iterator* NewIterator(db_obj_resource* rdb, rocksdb::ReadOptions* readoptions);
+
+extern void CompactDB(db_obj_resource* rdb);
 
 extern ERL_NIF_TERM make_status_tuple(ErlNifEnv* env, rocksdb::Status* status);
 #endif /*LEVELDB_NIF_H*/

@@ -28,6 +28,8 @@
 	 next/1,
 	 prev/1]).
 
+-export([compact_db/1]).
+
 -export([resource_test/0]).
 
 -export_type([db/0,
@@ -305,6 +307,15 @@ next(_It) ->
 -spec prev(It :: it()) ->
     {ok, {key(), value()}} | {error, Reason :: any()}.
 prev(_It) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Start manual compaction on full range of a RocksDB database.
+%% @end
+%%--------------------------------------------------------------------
+-spec compact_db(DB :: db()) ->
+    ok.
+compact_db(_db) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%NIF test to allocate resources

@@ -246,44 +246,40 @@ rocksdb::Status Get(db_obj_resource* rdb, rocksdb::ReadOptions* readoptions, roc
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
 	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Get(*readoptions, *key, value);
-	return status;
     } else {
 	status = static_cast<rocksdb::DB*>(rdb->object)->Get(*readoptions, *key, value);
-	return status;
     }
+    return status;
 }
 
 rocksdb::Status Put(db_obj_resource* rdb, rocksdb::WriteOptions* writeoptions, rocksdb::Slice* key, rocksdb::Slice* value){
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
 	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Put(*writeoptions, *key, *value);
-	return status;
     } else {
 	status = static_cast<rocksdb::DB*>(rdb->object)->Put(*writeoptions, *key, *value);
-	return status;
     }
+    return status;
 }
 
 rocksdb::Status Delete(db_obj_resource* rdb, rocksdb::WriteOptions* writeoptions, rocksdb::Slice* key){
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
 	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Delete(*writeoptions, *key);
-	return status;
     } else {
 	status = static_cast<rocksdb::DB*>(rdb->object)->Delete(*writeoptions, *key);
-	return status;
     }
+    return status;
 }
 
 rocksdb::Status Write(db_obj_resource* rdb, rocksdb::WriteOptions* writeoptions, rocksdb::WriteBatch* batch){
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
 	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Write(*writeoptions, batch);
-	return status;
     } else {
 	status = static_cast<rocksdb::DB*>(rdb->object)->Write(*writeoptions, batch);
-	return status;
     }
+    return status;
 }
 
 void GetApproximateSizes(db_obj_resource* rdb, rocksdb::Range* ranges, unsigned int ranges_size, uint64_t* size){
@@ -295,12 +291,20 @@ void GetApproximateSizes(db_obj_resource* rdb, rocksdb::Range* ranges, unsigned 
 }
 
 rocksdb::Iterator* NewIterator(db_obj_resource* rdb, rocksdb::ReadOptions* readoptions){
+    rocksdb::Iterator* it;
     if (rdb->type == DB_WITH_TTL) {
-	rocksdb::Iterator* it = static_cast<rocksdb::DBWithTTL*>(rdb->object)->NewIterator(*readoptions);
-	return it;
+	it = static_cast<rocksdb::DBWithTTL*>(rdb->object)->NewIterator(*readoptions);
     } else {
-	rocksdb::Iterator* it = static_cast<rocksdb::DB*>(rdb->object)->NewIterator(*readoptions);
-	return it;
+	it = static_cast<rocksdb::DB*>(rdb->object)->NewIterator(*readoptions);
+    }
+    return it;
+}
+
+void CompactDB(db_obj_resource* rdb){
+    if (rdb->type == DB_WITH_TTL) {
+	static_cast<rocksdb::DBWithTTL*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), nullptr, nullptr);
+    } else {
+	static_cast<rocksdb::DB*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), nullptr, nullptr);
     }
 }
 
