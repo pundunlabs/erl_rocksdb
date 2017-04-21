@@ -10,6 +10,8 @@
 #include "rocksdb/compaction_filter.h"
 #include "rocksdb/comparator.h"
 #include "rocksdb/write_batch.h"
+#include "rocksdb/utilities/backupable_db.h"
+#include "rocksdb/utilities/checkpoint.h"
 
 #include "descendingcomparator.h"
 #include "erl_nif.h"
@@ -71,6 +73,14 @@ extern void GetApproximateSizes(db_obj_resource* rdb, rocksdb::Range* ranges, un
 extern rocksdb::Iterator* NewIterator(db_obj_resource* rdb, rocksdb::ReadOptions* readoptions);
 
 extern void CompactDB(db_obj_resource* rdb);
+
+extern rocksdb::Status BackupDB(db_obj_resource* rdb, char* path);
+
+extern rocksdb::Status RestoreDB(char* bkp_path, char* db_path, char* wal_path);
+
+extern rocksdb::Status RestoreDB(char* bkp_path, char* db_path, char* wal_path, uint32_t backup_id);
+
+extern rocksdb::Status CreateCheckpoint(db_obj_resource* rdb, char* path);
 
 extern ERL_NIF_TERM make_status_tuple(ErlNifEnv* env, rocksdb::Status* status);
 #endif /*LEVELDB_NIF_H*/

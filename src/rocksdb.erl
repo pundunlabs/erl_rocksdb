@@ -28,7 +28,12 @@
 	 next/1,
 	 prev/1]).
 
--export([compact_db/1]).
+-export([compact_db/1,
+	 backup_db/2,
+	 get_backup_info/1,
+	 restore_db/3,
+	 restore_db/4,
+	 create_checkpoint/2]).
 
 -export([resource_test/0]).
 
@@ -316,6 +321,57 @@ prev(_It) ->
 -spec compact_db(DB :: db()) ->
     ok.
 compact_db(_db) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Create backup for a RocksDB database.
+%% @end
+%%--------------------------------------------------------------------
+-spec backup_db(DB :: db(), Path :: string()) ->
+    ok | {error, Reason :: any()}.
+backup_db(_db, _path) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Get backup information tuples.
+%% @end
+%%--------------------------------------------------------------------
+-spec get_backup_info(Path :: string()) ->
+    {ok, [term()]} | {error, Reason :: any()}.
+get_backup_info(_path) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Restore a rocksdb database from latest backup.
+%% @end
+%%--------------------------------------------------------------------
+-spec restore_db(BkpPath :: string(),
+		 DbPath :: string(),
+		 WalPath :: string()) ->
+    ok | {error, Reason :: any()}.
+restore_db(_bkp_path, _db_path, _wal_path) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Restore a rocksdb database from backup that is specified by
+%% id.
+%% @end
+%%--------------------------------------------------------------------
+-spec restore_db(BkpPath :: string(),
+		 DbPath :: string(),
+		 WalPath :: string(),
+		 BackupId :: pos_integer()) ->
+    ok | {error, Reason :: any()}.
+restore_db(_bkp_path, _db_path, _wal_path, _backup_id) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Create a persistent snapshot for a RocksDB database.
+%% @end
+%%--------------------------------------------------------------------
+-spec create_checkpoint(DB :: db(), Path :: string()) ->
+    ok | {error, Reason :: any()}.
+create_checkpoint(_db, _path) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%NIF test to allocate resources

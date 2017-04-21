@@ -308,6 +308,72 @@ void CompactDB(db_obj_resource* rdb){
     }
 }
 
+rocksdb::Status BackupDB(db_obj_resource* rdb, char* path){
+    string path_string(path);
+    rocksdb::Status status;
+
+    rocksdb::BackupEngine* backup_engine;
+    status = rocksdb::BackupEngine::Open(rocksdb::Env::Default(), rocksdb::BackupableDBOptions(path_string), &backup_engine);
+
+    if(status.ok()) {
+	if (rdb->type == DB_WITH_TTL) {
+	    status = backup_engine->CreateNewBackup(static_cast<rocksdb::DBWithTTL*>(rdb->object));
+	} else {
+	    status = backup_engine->CreateNewBackup(static_cast<rocksdb::DB*>(rdb->object));
+	}
+    }
+    delete backup_engine;
+    return status;
+}
+
+rocksdb::Status RestoreDB(char* bkp_path, char* db_path, char* wal_path){
+    string bkp_path_str(bkp_path);
+    string db_path_str(db_path);
+    string wal_path_str(wal_path);
+
+    rocksdb::BackupEngineReadOnly* backup_engine;
+    rocksdb::Status status = rocksdb::BackupEngineReadOnly::Open(Env::Default(), BackupableDBOptions(bkp_path_str), &backup_engine);
+
+    if(status.ok()) {
+	status = backup_engine->RestoreDBFromLatestBackup(db_path_str, wal_path_str);
+    }
+    delete backup_engine;
+    return status;
+}
+
+rocksdb::Status RestoreDB(char* bkp_path, char* db_path, char* wal_path, uint32_t backup_id){
+    string bkp_path_str(bkp_path);
+    string db_path_str(db_path);
+    string wal_path_str(wal_path);
+
+    rocksdb::BackupEngineReadOnly* backup_engine;
+    rocksdb::Status status = rocksdb::BackupEngineReadOnly::Open(Env::Default(), BackupableDBOptions(bkp_path_str), &backup_engine);
+
+    if(status.ok()) {
+	status = backup_engine->RestoreDBFromBackup(backup_id, db_path_str, wal_path_str);
+    }
+    delete backup_engine;
+    return status;
+}
+
+rocksdb::Status CreateCheckpoint(db_obj_resource* rdb, char* path){
+    const string path_string(path);
+    rocksdb::Status status;
+
+    rocksdb::Checkpoint* checkpoint;
+    if (rdb->type == DB_WITH_TTL) {
+	status = rocksdb::Checkpoint::Create(static_cast<rocksdb::DBWithTTL*>(rdb->object), &checkpoint);
+    } else {
+	status = rocksdb::Checkpoint::Create(static_cast<rocksdb::DB*>(rdb->object), &checkpoint);
+    }
+
+    if(status.ok()) {
+	status = checkpoint->CreateCheckpoint(path_string);
+    }
+
+    return status;
+}
+
 ERL_NIF_TERM make_status_tuple(ErlNifEnv* env, rocksdb::Status* status){
     ERL_NIF_TERM type;
     if(status->IsNotFound()){

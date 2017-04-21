@@ -1161,8 +1161,169 @@ ERL_NIF_TERM compact_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if (argc != 1 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
+
     CompactDB(rdb);
     return atom_ok;
+}
+
+ERL_NIF_TERM backup_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char path[MAXPATHLEN];
+    db_obj_resource *rdb;
+
+    /* get db_ptr resource */
+    if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+
+    /*get path*/
+    if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) <1){
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "path"));
+    }
+    else{
+	rocksdb::Status status = BackupDB(rdb, path);
+	if(status.ok()){
+	    return atom_ok;
+	}
+	else{
+	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
+	    return status_tuple;
+	}
+    }
+}
+
+ERL_NIF_TERM get_backup_info_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char path[MAXPATHLEN];
+
+    /* get path  */
+    if (argc != 1 || enif_get_string(env, argv[0], path, sizeof(path), ERL_NIF_LATIN1) <1) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "bkp_path"));
+    }
+    else{
+	const string path_string(path);
+	rocksdb::BackupEngine* backup_engine;
+	rocksdb::Status status = rocksdb::BackupEngine::Open(rocksdb::Env::Default(), rocksdb::BackupableDBOptions(path_string), &backup_engine);
+
+	if(status.ok()) {
+	    std::vector<rocksdb::BackupInfo> backup_info;
+	    backup_engine->GetBackupInfo(&backup_info);
+
+	    ERL_NIF_TERM list;
+	    ERL_NIF_TERM id_term;
+	    ERL_NIF_TERM ts_term;
+	    ERL_NIF_TERM size_term;
+	    ERL_NIF_TERM number_files_term;
+	    ERL_NIF_TERM app_metadata_term;
+	    vector<ERL_NIF_TERM> info_tuples;
+	    size_t str_len;
+	    for(auto const& info: backup_info) {
+		id_term = enif_make_uint(env, (unsigned int) info.backup_id);
+		ts_term = enif_make_int64(env, (ErlNifSInt64) info.timestamp);
+		size_term = enif_make_uint64(env, (ErlNifUInt64) info.size);
+		number_files_term = enif_make_uint(env, (unsigned int) info.number_files);
+		str_len = info.app_metadata.length();
+		char * cstr = new char [str_len+1];
+		strcpy (cstr, info.app_metadata.c_str());
+		app_metadata_term = enif_make_string_len(env, cstr, str_len, ERL_NIF_LATIN1);
+		info_tuples.push_back(enif_make_tuple5(env, id_term, ts_term, size_term, number_files_term, app_metadata_term));
+		delete[] cstr;
+	    }
+	    list = enif_make_list_from_array(env, &info_tuples[0], info_tuples.size());
+	    return enif_make_tuple2(env, atom_ok, list);
+	}
+	else{
+	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
+	    return status_tuple;
+	}
+    }
+}
+
+ERL_NIF_TERM restore_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char bkp_path[MAXPATHLEN];
+    char db_path[MAXPATHLEN];
+    char wal_path[MAXPATHLEN];
+
+    /* get bkp path  */
+    if (argc != 3 || enif_get_string(env, argv[0], bkp_path, sizeof(bkp_path), ERL_NIF_LATIN1) <1) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "bkp_path"));
+    }
+    /*get db path*/
+    if(enif_get_string(env, argv[1], db_path, sizeof(db_path), ERL_NIF_LATIN1) <1){
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "db_path"));
+    }
+    /*get wal path*/
+    if(enif_get_string(env, argv[2], wal_path, sizeof(wal_path), ERL_NIF_LATIN1) <1){
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "wal_path"));
+    }
+    else{
+	rocksdb::Status status = RestoreDB(bkp_path, db_path, wal_path);
+	if(status.ok()){
+	    return atom_ok;
+	}
+	else{
+	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
+	    return status_tuple;
+	}
+    }
+}
+
+ERL_NIF_TERM restore_db_by_id_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char bkp_path[MAXPATHLEN];
+    char db_path[MAXPATHLEN];
+    char wal_path[MAXPATHLEN];
+    int backup_id;
+    /* get bkp path  */
+    if (argc != 4 || enif_get_string(env, argv[0], bkp_path, sizeof(bkp_path), ERL_NIF_LATIN1) <1) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "bkp_path"));
+    }
+    /*get db path*/
+    if(enif_get_string(env, argv[1], db_path, sizeof(db_path), ERL_NIF_LATIN1) <1){
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "db_path"));
+    }
+    /*get wal path*/
+    if(enif_get_string(env, argv[2], wal_path, sizeof(wal_path), ERL_NIF_LATIN1) <1){
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "wal_path"));
+    }
+
+    /*get backup id*/
+    if (!enif_get_int(env, argv[3], &backup_id)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "backup_id"));
+    }
+    else{
+	rocksdb::Status status = RestoreDB(bkp_path, db_path, wal_path, (uint32_t) backup_id);
+	if(status.ok()){
+	    return atom_ok;
+	}
+	else{
+	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
+	    return status_tuple;
+	}
+    }
+}
+
+ERL_NIF_TERM create_checkpoint_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char path[MAXPATHLEN];
+    db_obj_resource *rdb;
+
+    /* get db_ptr resource */
+    if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+
+    /*get path*/
+    if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) <1){
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "path"));
+    }
+    else{
+
+	rocksdb::Status status = CreateCheckpoint(rdb, path);
+	if(status.ok()){
+	    return atom_ok;
+	}
+	else{
+	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
+	    return status_tuple;
+	}
+    }
 }
 
 ErlNifFunc nif_funcs[] = {
@@ -1195,6 +1356,11 @@ ErlNifFunc nif_funcs[] = {
     {"prev", 1, prev_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
     {"compact_db", 1, compact_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"backup_db", 2, backup_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"get_backup_info", 1, get_backup_info_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"restore_db", 3, restore_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"restore_db", 4, restore_db_by_id_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"create_checkpoint", 2, create_checkpoint_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
     {"resource_test", 0, resource_test_nif}
 
