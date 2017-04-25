@@ -13,7 +13,7 @@ namespace {
     ERL_NIF_TERM atom_not_found;
     ERL_NIF_TERM atom_corruption;
     //ERL_NIF_TERM atom_io_error;
-    ERL_NIF_TERM atom_invalid_argument;
+    //ERL_NIF_TERM atom_invalid_argument;
     ERL_NIF_TERM atom_merge_in_progress;
     ERL_NIF_TERM atom_incomplete;
     ERL_NIF_TERM atom_shutdown_in_progress;
@@ -64,7 +64,7 @@ void init_lib_atoms(ErlNifEnv* env) {
     atom_error = enif_make_atom(env, "error");
     atom_not_found = enif_make_atom(env, "not_found");
     atom_corruption = enif_make_atom(env, "corruption");
-    atom_invalid_argument = enif_make_atom(env, "invalid_argument");
+    //atom_invalid_argument = enif_make_atom(env, "invalid_argument");
     atom_merge_in_progress = enif_make_atom(env, "merge_in_progress");
     atom_incomplete = enif_make_atom(env, "incomplete");
     atom_shutdown_in_progress = enif_make_atom(env, "shutdown_in_progress");
@@ -387,7 +387,8 @@ ERL_NIF_TERM make_status_tuple(ErlNifEnv* env, rocksdb::Status* status){
 	//type = atom_io_error;
     }
     else if(status->IsInvalidArgument()){
-	type = atom_invalid_argument;
+	type = enif_make_string(env, status->ToString().c_str(), ERL_NIF_LATIN1);
+	//type = atom_invalid_argument;
     }
     else if(status->IsMergeInProgress()){
 	type = atom_merge_in_progress;
