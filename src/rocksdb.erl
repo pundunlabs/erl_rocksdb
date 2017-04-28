@@ -1,15 +1,16 @@
 -module(rocksdb).
 
--export([open_db/2,
+-export([open_db/3,
          open_db_with_ttl/3,
 	 close_db/1,
          get/3,
          put/4,
          delete/3,
-         write/4]).
+         write/4,
+	 index_merge/4]).
 
 -export([options/1,
-         readoptions/1,
+	 readoptions/1,
          writeoptions/1]).
 
 -export([destroy_db/2,
@@ -29,6 +30,7 @@
 	 prev/1]).
 
 -export([compact_db/1,
+	 compact_index/1,
 	 backup_db/2,
 	 get_backup_info/1,
 	 restore_db/3,
@@ -83,9 +85,9 @@ init() ->
 %% Returns {ok, DB} where DB is an NIF Resource, or {error, Reason}.
 %% @end
 %%--------------------------------------------------------------------
--spec open_db(Options :: options(), Path :: string()) ->
+-spec open_db(Options :: options(), Path :: string(), CFOpts :: [term()]) ->
     {ok, DB :: db()} | {error, Reason :: any()}.
-open_db(_options, _Path)->
+open_db(_options, _Path, _CFOpts)->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
@@ -148,6 +150,18 @@ delete(_db, _writeoptions, _Key)->
 -spec write(DB :: db(), WriteOptions :: writeoptions(), DeleteKeys :: [key()], PutKeyValuePairs :: [{key(), value()}]) ->
     ok | {error, Reason :: any()}.
 write(_db, _writeoptions, _Delete_Ks, _Put_KVs)->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Put key/index_term pair provided to rocksdb database's index
+%% column family referenced by NIF Resource DB.
+%% Operation performed using provided WriteOptions NIF Resource.
+%% @end
+%%--------------------------------------------------------------------
+-spec index_merge(DB :: db(), WriteOptions :: writeoptions(),
+	  Key :: key(), Value :: value()) ->
+    ok | {error, Reason :: any()}.
+index_merge(_db, _writeoptions, _Key, _Value)->
     erlang:nif_error(nif_library_not_loaded).
 
 %% Declaring structs and constructing objects
@@ -321,6 +335,16 @@ prev(_It) ->
 -spec compact_db(DB :: db()) ->
     ok.
 compact_db(_db) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Start manual compaction on full range of a Index
+%% Columns family.
+%% @end
+%%--------------------------------------------------------------------
+-spec compact_index(DB :: db()) ->
+    ok.
+compact_index(_db) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------

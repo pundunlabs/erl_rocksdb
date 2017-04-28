@@ -1,7 +1,9 @@
+#include <iostream>
 #include "rocksdb_nif.h"
+#include "index_merger.h"
+#include "index_filter.h"
 #include <assert.h>
 
-#include <iostream>
 
 using namespace rocksdb;
 
@@ -43,6 +45,11 @@ namespace {
 	rocksdb::DB *db;
 	db = (rocksdb::DB*) rdb->object;
 	rdb->mtx->lock();
+	delete rdb->pid;
+	delete rdb->cfi_options;
+	if( rdb->handles ) {
+	    for( auto h : *(rdb->handles) ) { delete h; }
+	}
 	delete rdb->link_set;
 	delete db;
 	rdb->allocated = 0;
@@ -53,6 +60,11 @@ namespace {
 	rocksdb::DBWithTTL *db;
 	db = (rocksdb::DBWithTTL*) rdb->object;
 	rdb->mtx->lock();
+	delete rdb->pid;
+	delete rdb->cfi_options;
+	if( rdb->handles ) {
+	    for( auto h : *(rdb->handles) ) { delete h; }
+	}
 	delete rdb->link_set;
 	delete db;
 	rdb->allocated = 0;
@@ -105,19 +117,58 @@ void delete_rit(it_obj_resource* rit){
     rit->mtx->unlock();
 }
 
-int fix_options(unordered_map<string, string>* map, rocksdb::Options* opts) {
-    unordered_map<std::string,string>::const_iterator got = map->find ("comparator");
-    if ( got != map->end() ){
-	//found comparator option
-	if( got->second.compare("descending") == 0) {
-	    opts->comparator = &descendingcomparator;
+int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
+		   rocksdb::ColumnFamilyOptions* cfd_options,
+		   rocksdb::ColumnFamilyOptions* cfi_options,
+		   db_obj_resource* rdb) {
+    ErlNifEnv** cp_env = &(rdb->env);
+    unsigned int kvl_len;
+    char temp[MAXPATHLEN];
+
+    ERL_NIF_TERM head, tail;
+    const ERL_NIF_TERM* tuple;
+    int arity;
+
+    ErlNifPid *pid = (ErlNifPid*)malloc( sizeof(ErlNifPid));
+
+    if (!enif_get_list_length(env, kvl, &kvl_len)) {
+	return -1;
+    }
+
+    while(enif_get_list_cell(env, kvl, &head, &tail)){
+	if(!enif_get_tuple(env, head, &arity, &tuple)) {
+	    return enif_make_badarg(env);
 	}
-	map->erase("comparator");
+	if(arity != 2 || enif_get_string(env, tuple[0], temp, sizeof(temp), ERL_NIF_LATIN1) < 1 ) {
+	    return enif_make_badarg(env);
+	}
+	if(strcmp(temp, "pid") == 0) {
+	    if(!enif_get_local_pid(env, tuple[1], pid)) {
+		std::cout << "pid connot be read" << std::endl;
+		return -1;
+	    }
+	    rdb->pid = pid;
+	    cfi_options->merge_operator.reset(new rocksdb::IndexMerger(pid, cp_env);)
+	    rocksdb::IndexFilter *filter = new rocksdb::IndexFilter();
+	    cfi_options->compaction_filter = filter;
+	}
+	if(strcmp(temp, "comparator") == 0) {
+	    if(enif_get_string(env, tuple[1], temp, sizeof(temp), ERL_NIF_LATIN1) < 1) {
+		return -1;
+	    }
+	    if(strcmp(temp, "descending") == 0) {
+		cfi_options->comparator = rocksdb::ReverseBytewiseComparator();
+		cfd_options->comparator = rocksdb::ReverseBytewiseComparator();
+	    }
+	}
+        kvl = tail;
     }
     return 0;
 }
 
-int init_readoptions(ErlNifEnv* env, const ERL_NIF_TERM* readoptions_array, rocksdb::ReadOptions **_readoptions) {
+int init_readoptions(ErlNifEnv* env,
+		     const ERL_NIF_TERM* readoptions_array,
+		     rocksdb::ReadOptions **_readoptions) {
     int temp;
     rocksdb::ReadOptions *readoptions = new rocksdb::ReadOptions;
     *_readoptions = readoptions;
@@ -173,7 +224,9 @@ int init_readoptions(ErlNifEnv* env, const ERL_NIF_TERM* readoptions_array, rock
     return 0;
 }
 
-int init_writeoptions(ErlNifEnv* env, const ERL_NIF_TERM* writeoptions_array, rocksdb::WriteOptions **_writeoptions) {
+int init_writeoptions(ErlNifEnv* env,
+		      const ERL_NIF_TERM* writeoptions_array,
+		      rocksdb::WriteOptions **_writeoptions) {
     int temp;
     rocksdb::WriteOptions *writeoptions = new rocksdb::WriteOptions;
     *_writeoptions = writeoptions;
@@ -224,21 +277,30 @@ int init_writeoptions(ErlNifEnv* env, const ERL_NIF_TERM* writeoptions_array, ro
     return 0;
 }
 
-rocksdb::DB* open_db(rocksdb::Options* options, char* path, rocksdb::Status* status) {
+rocksdb::DB* open_db(rocksdb::DBOptions* options,
+		     char* path,
+		     rocksdb::ColumnFamilyOptions* cfd_options,
+		     rocksdb::ColumnFamilyOptions* cfi_options,
+		     vector<rocksdb::ColumnFamilyHandle*>* handles,
+		     rocksdb::Status* status) {
     rocksdb::DB* db;
     string path_string(path);
-    *status = rocksdb::DB::Open(*options, path_string, &db);
-    //Prints "Status: OK" if successful
-    //cout << "Status: " << status->ToString() << "\n" << endl;
-    //assert(status.ok());
+    vector<rocksdb::ColumnFamilyDescriptor> column_families;
+    column_families.push_back(rocksdb::ColumnFamilyDescriptor(kDefaultColumnFamilyName, *cfd_options));
+    column_families.push_back(ColumnFamilyDescriptor("index", *cfi_options));
+    *status = rocksdb::DB::Open(*options, path_string, column_families, handles, &db);
     return db;
 }
 
-rocksdb::DBWithTTL* open_db_with_ttl(rocksdb::Options* options, char* path, int32_t* ttl, rocksdb::Status* status) {
+rocksdb::DBWithTTL* open_db_with_ttl(rocksdb::DBOptions* options,
+				     char* path,
+				     int32_t* ttl,
+				     rocksdb::Status* status) {
     rocksdb::DBWithTTL* db;
     string path_string(path);
     bool read_only = false;
-    *status = rocksdb::DBWithTTL::Open(*options, path_string, &db, *ttl, read_only);
+    auto* opt = reinterpret_cast<rocksdb::Options*>(options);
+    *status = rocksdb::DBWithTTL::Open(*opt, path_string, &db, *ttl, read_only);
     return db;
 }
 
@@ -282,6 +344,20 @@ rocksdb::Status Write(db_obj_resource* rdb, rocksdb::WriteOptions* writeoptions,
     return status;
 }
 
+rocksdb::Status IndexMerge(db_obj_resource* rdb, rocksdb::WriteOptions* writeoptions, rocksdb::Slice* key, rocksdb::Slice* value){
+    rocksdb::Status status;
+    std::string val;
+    if (rdb->type == DB_WITH_TTL) {
+	rocksdb::DBWithTTL* db = static_cast<rocksdb::DBWithTTL*>(rdb->object);
+	status = db->Merge(*writeoptions, rdb->handles->at(1), *key, *value);
+    } else {
+	rocksdb::DB* db = static_cast<rocksdb::DB*>(rdb->object);
+	status = db->Merge(*writeoptions, rdb->handles->at(1), *key, *value);
+	status = db->Get(rocksdb::ReadOptions(), rdb->handles->at(1), *key, &val);
+    }
+    return status;
+}
+
 void GetApproximateSizes(db_obj_resource* rdb, rocksdb::Range* ranges, unsigned int ranges_size, uint64_t* size){
     if (rdb->type == DB_WITH_TTL) {
 	static_cast<rocksdb::DBWithTTL*>(rdb->object)->GetApproximateSizes(ranges, ranges_size, size);
@@ -305,6 +381,14 @@ void CompactDB(db_obj_resource* rdb){
 	static_cast<rocksdb::DBWithTTL*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), nullptr, nullptr);
     } else {
 	static_cast<rocksdb::DB*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), nullptr, nullptr);
+    }
+}
+
+void CompactIndex(db_obj_resource* rdb){
+    if (rdb->type == DB_WITH_TTL) {
+	static_cast<rocksdb::DBWithTTL*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), rdb->handles->at(1), nullptr, nullptr);
+    } else {
+	static_cast<rocksdb::DB*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), rdb->handles->at(1), nullptr, nullptr);
     }
 }
 
