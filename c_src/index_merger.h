@@ -1,4 +1,5 @@
 #include <rocksdb/merge_operator.h>
+#include "rocksdb_nif.h"
 #include "erl_nif.h"
 #include <algorithm>
 #include <thread>
@@ -6,16 +7,18 @@
 namespace rocksdb {
 class IndexMerger : public MergeOperator {
     public:
-	IndexMerger(ErlNifPid* pid, ErlNifEnv **cp_env)
-	: pid_(pid), cp_env_(cp_env){
+	IndexMerger(ErlNifPid* pid, EnvBox *env_box)
+	: pid_(pid), env_box_(env_box){
 	    env_ = enif_alloc_env();
 	    atom_index_update = enif_make_atom(env_, "index_update");
+	    atom_undefined = enif_make_atom(env_, "undefined");
 	  }
 
 	~IndexMerger() {
 	    enif_free_env(env_);
 	}
 	ERL_NIF_TERM atom_index_update;
+	ERL_NIF_TERM atom_undefined;
 	virtual bool FullMergeV2(const MergeOperationInput& merge_in,
 				 MergeOperationOutput* merge_out) const override {
 	    merge_out->new_value.clear();
@@ -34,7 +37,7 @@ class IndexMerger : public MergeOperator {
     private:
 	ErlNifEnv* env_;
 	ErlNifPid* pid_;
-	ErlNifEnv** cp_env_;
+	EnvBox* env_box_;
 		
 	void update_term_index(const rocksdb::Slice& key,
 			       const std::vector<Slice> list) const {
@@ -46,14 +49,16 @@ class IndexMerger : public MergeOperator {
 	    size_t size = list.size();
 	    auto add = list[size-1];
 	    ERL_NIF_TERM addTerm = enif_make_string_len(env_, add.ToString().c_str(), add.size(), ERL_NIF_LATIN1);
+	    ERL_NIF_TERM removeTerm;
 	    if (size > 1) {
 		auto remove = list[size-2];
-		ERL_NIF_TERM removeTerm = enif_make_string_len(env_, remove.ToString().c_str(), remove.size(), ERL_NIF_LATIN1);
-		tuple = enif_make_tuple4(env_, atom_index_update, keyTerm, addTerm, removeTerm);
-	    } else{
-		tuple = enif_make_tuple3(env_, atom_index_update, keyTerm, addTerm);
+		removeTerm = enif_make_string_len(env_, remove.ToString().c_str(), remove.size(), ERL_NIF_LATIN1);
+	    } else {
+		removeTerm = atom_undefined;
 	    }
-	    enif_send(*cp_env_, pid_, env_, tuple);
+	    tuple = enif_make_tuple4(env_, atom_index_update, keyTerm, addTerm, removeTerm);
+	    ErlNifEnv* cp_env = env_box_->get(key);
+	    enif_send(cp_env, pid_, env_, tuple);
 	    enif_clear_env(env_);
 	}
 };

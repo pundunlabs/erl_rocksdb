@@ -28,6 +28,7 @@ ErlNifResourceType* iteratorResource;
 ERL_NIF_TERM atom_ok;
 ERL_NIF_TERM atom_error;
 ERL_NIF_TERM atom_invalid;
+ERL_NIF_TERM atom_key_conflict;
 
 
 void db_destructor(ErlNifEnv* env, void *db);
@@ -75,6 +76,7 @@ int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info){
     atom_ok	 = enif_make_atom(env, "ok");
     atom_error	 = enif_make_atom(env, "error");
     atom_invalid = enif_make_atom(env, "invalid");
+    atom_key_conflict = enif_make_atom(env, "key_conflict");
 
     init_lib_atoms(env);
 
@@ -157,6 +159,7 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     }
     db_obj_resource* rdb = (db_obj_resource *) enif_alloc_resource(dbResource, sizeof(db_obj_resource));
 
+    rdb->env_box = new rocksdb::EnvBox();
     if ( fix_cf_options(env, kvl, &cfd_options, cfi_options, rdb) != 0 ) {
 	enif_release_resource(rdb);
 	return enif_make_badarg(env);
@@ -514,9 +517,12 @@ ERL_NIF_TERM index_merge_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
     rocksdb::Slice key((const char*)binkey.data, (size_t) binkey.size);
     rocksdb::Slice value = rocksdb::Slice(term);
 
-    rdb->env = env;
+    if ( !rdb->env_box->put(key, env) ) {
+	return enif_make_tuple2(env, atom_error, atom_key_conflict);
+    }
     rocksdb::Status status = IndexMerge(rdb, writeoptions, &key, &value);
-
+    rdb->env_box->erase(key);
+    
     if (status.ok()) {
 	return atom_ok;
     }

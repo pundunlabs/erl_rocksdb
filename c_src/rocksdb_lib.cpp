@@ -46,6 +46,7 @@ namespace {
 	db = (rocksdb::DB*) rdb->object;
 	rdb->mtx->lock();
 	delete rdb->pid;
+	delete rdb->env_box;
 	delete rdb->cfi_options;
 	if( rdb->handles ) {
 	    for( auto h : *(rdb->handles) ) { delete h; }
@@ -61,6 +62,7 @@ namespace {
 	db = (rocksdb::DBWithTTL*) rdb->object;
 	rdb->mtx->lock();
 	delete rdb->pid;
+	delete rdb->env_box;
 	delete rdb->cfi_options;
 	if( rdb->handles ) {
 	    for( auto h : *(rdb->handles) ) { delete h; }
@@ -121,7 +123,7 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 		   rocksdb::ColumnFamilyOptions* cfd_options,
 		   rocksdb::ColumnFamilyOptions* cfi_options,
 		   db_obj_resource* rdb) {
-    ErlNifEnv** cp_env = &(rdb->env);
+    EnvBox* env_box = rdb->env_box;
     unsigned int kvl_len;
     char temp[MAXPATHLEN];
 
@@ -148,7 +150,7 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 		return -1;
 	    }
 	    rdb->pid = pid;
-	    cfi_options->merge_operator.reset(new rocksdb::IndexMerger(pid, cp_env);)
+	    cfi_options->merge_operator.reset(new rocksdb::IndexMerger(pid, env_box));
 	    rocksdb::IndexFilter *filter = new rocksdb::IndexFilter();
 	    cfi_options->compaction_filter = filter;
 	}
