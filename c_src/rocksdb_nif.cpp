@@ -485,6 +485,47 @@ ERL_NIF_TERM write_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     }
 }
 
+ERL_NIF_TERM term_index_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    db_obj_resource *rdb;
+    /* get db_ptr resource */
+    if (argc != 4 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+
+    opt_obj_resource* wopts;
+    /* get writeoptions resource */
+    if (!enif_get_resource(env, argv[1], writeoptionResource, (void **) &wopts)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "writeoptions"));
+    }
+
+    rocksdb::WriteOptions* writeoptions = (rocksdb::WriteOptions *) wopts->object;
+
+    ErlNifBinary binterm;
+    /* get term resource */
+    if (!enif_inspect_binary(env, argv[2], &binterm)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "term"));
+    }
+
+    ErlNifBinary binkey;
+    /*get key resource*/
+    if (!enif_inspect_binary(env, argv[3], &binkey)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "key"));
+    }
+
+    rocksdb::Slice term((const char*)binterm.data, (size_t) binterm.size);
+    rocksdb::Slice key((const char*)binkey.data, (size_t) binkey.size);
+
+    rocksdb::Status status = TermIndex(rdb, writeoptions, &term, &key);
+
+    if (status.ok()) {
+	return atom_ok;
+    }
+    else {
+	ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
+	return status_tuple;
+    }
+}
+
 ERL_NIF_TERM index_merge_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     db_obj_resource *rdb;
     opt_obj_resource* wopts;
@@ -1413,6 +1454,7 @@ ErlNifFunc nif_funcs[] = {
     {"delete", 3, delete_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"write", 4, write_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"index_merge", 4, index_merge_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"term_index", 4, term_index_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
     {"options", 1, options_nif},
     {"readoptions", 1, readoptions_nif},

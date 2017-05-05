@@ -102,6 +102,11 @@ extern rocksdb::Status IndexMerge(db_obj_resource* rdb,
 				  rocksdb::Slice* key,
 				  rocksdb::Slice* value);
 
+extern rocksdb::Status TermIndex(db_obj_resource* rdb,
+				 rocksdb::WriteOptions* writeoptions,
+				 rocksdb::Slice* term,
+				 rocksdb::Slice* key);
+
 extern void GetApproximateSizes(db_obj_resource* rdb,
 				rocksdb::Range* ranges,
 				unsigned int ranges_size,

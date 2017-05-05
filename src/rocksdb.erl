@@ -7,7 +7,8 @@
          put/4,
          delete/3,
          write/4,
-	 index_merge/4]).
+	 index_merge/4,
+	 term_index/4]).
 
 -export([options/1,
 	 readoptions/1,
@@ -162,6 +163,18 @@ write(_db, _writeoptions, _Delete_Ks, _Put_KVs)->
 	  Key :: key(), Value :: value()) ->
     ok | {error, Reason :: any()}.
 index_merge(_db, _writeoptions, _Key, _Value)->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Put key/index_term pair provided to rocksdb database's index
+%% column family referenced by NIF Resource DB.
+%% Operation performed using provided WriteOptions NIF Resource.
+%% @end
+%%--------------------------------------------------------------------
+-spec term_index(DB :: db(), WriteOptions :: writeoptions(),
+	  Term :: key(), Key :: key()) ->
+    ok | {error, Reason :: any()}.
+term_index(_db, _writeoptions, _Term, _Key)->
     erlang:nif_error(nif_library_not_loaded).
 
 %% Declaring structs and constructing objects
