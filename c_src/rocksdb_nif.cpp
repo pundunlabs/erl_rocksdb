@@ -563,7 +563,7 @@ ERL_NIF_TERM index_merge_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
     }
     rocksdb::Status status = IndexMerge(rdb, writeoptions, &key, &value);
     rdb->env_box->erase(key);
-    
+
     if (status.ok()) {
 	return atom_ok;
     }

@@ -7,8 +7,6 @@
 #include "rocksdb/merge_operator.h"
 #include "utilities/merge_operators.h"
 
-#include <iostream>
-
 namespace rocksdb {
     TermIndexMerger::TermIndexMerger() {}
 
@@ -20,7 +18,6 @@ namespace rocksdb {
 	    // Only one operand
 	    Slice back = merge_in.operand_list.back();
 	    const char* chars = back.data();
-	    char  op = chars[4];
 	    size_t buf_len = back.size()-1;
 	    char* buf = (char*) malloc (sizeof(char)*(buf_len));
 	    memcpy(buf, chars, 4);
@@ -60,7 +57,7 @@ namespace rocksdb {
 
 	    if (op == 43) {
 		postings.emplace(str);
-	    } else if( op ==45 ) {
+	    } else if( op == 45 ) {
 		postings.erase(str);
 	    }
 	    delete buf;
@@ -77,38 +74,6 @@ namespace rocksdb {
 					    std::string* new_value,
 					    Logger* logger) const {
 	return false;
-    }
-
-    // A version of PartialMerge that actually performs "partial merging".V
-    // Use this to simulate the exact behaviour of the StringAppendOperator.
-    bool TermIndexMerger::_AssocPartialMergeMulti(const Slice& key,
-						  const std::deque<Slice>& operand_list,
-						  std::string* new_value,
-						  Logger* logger) const {
-	std::cout << "Call to assoc partial merge : " << key.ToString() << std::endl;
-	// Clear the *new_value for writing
-	assert(new_value);
-	new_value->clear();
-	assert(operand_list.size() >= 2);
-
-	// Generic append
-	// Determine and reserve correct size for *new_value.
-	size_t size = 0;
-	for (const auto& operand : operand_list) {
-	    size += operand.size();
-	}
-	size += operand_list.size();
-	new_value->reserve(size);
-
-	// Apply concatenation
-	new_value->assign(operand_list.front().data(), operand_list.front().size());
-
-	for (std::deque<Slice>::const_iterator it = operand_list.begin() + 1;
-		it != operand_list.end(); ++it) {
-	    new_value->append(it->data(), it->size());
-	}
-
-	return true;
     }
 
     const char* TermIndexMerger::Name() const  {

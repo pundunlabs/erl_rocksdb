@@ -20,11 +20,6 @@ namespace rocksdb {
 		override;
 
 	    virtual const char* Name() const override;
-
-	private:
-	    bool _AssocPartialMergeMulti(const Slice& key,
-		    const std::deque<Slice>& operand_list,
-		    std::string* new_value, Logger* logger) const;
     };
 
 } // namespace rocksdb
