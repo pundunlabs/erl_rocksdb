@@ -73,8 +73,9 @@ namespace rocksdb {
 
     ERL_NIF_TERM IndexMerger::make_add_term(Slice* s) const {
 	if (s->size() > 0 ){
+	    string str = term_prep(s);
 	    return enif_make_string_len(this->env_,
-					s->ToString().c_str(),
+					str.c_str(),
 					s->size(), ERL_NIF_LATIN1);
 	} else{
 	    return this->atom_undefined;
@@ -83,8 +84,9 @@ namespace rocksdb {
     
     ERL_NIF_TERM IndexMerger::make_remove_term(size_t size, Slice* s) const {
 	if ( size > 1 && s->size() > 0 ){
+	    string str = term_prep(s);
 	    return enif_make_string_len(this->env_,
-					s->ToString().c_str(),
+					str.c_str(),
 					s->size(), ERL_NIF_LATIN1);
 	} else {
 	    return this->atom_undefined;
@@ -93,15 +95,7 @@ namespace rocksdb {
     
     std::pair<ERL_NIF_TERM, ERL_NIF_TERM> IndexMerger::diff_terms(Slice* add,
 								  Slice* remove) const {
-	//Remove punctuation characters from Slice add
-	string text = add->ToString();
-	string str;
-	std::remove_copy_if(text.begin(), text.end(),            
-			    std::back_inserter(str),
-			    std::ptr_fun<int, int>(&std::ispunct));
-	// To lower case
-	std::transform(str.begin(), str.end(), str.begin(),
-	                   [](unsigned char c) { return std::tolower(c); });
+	string str = term_prep(add);
 	// Populate a set of incoming terms
 	std::unordered_multiset<std::string> terms;
 	std::string delim = " \t\n\v\f\r";
@@ -113,16 +107,9 @@ namespace rocksdb {
 	    tail = str.find_first_of(delim, head);
 	}
 
-	//Remove punctuation characters from Slice remove
-	text.clear();
-	text = remove->ToString();
 	str.clear();
-	std::remove_copy_if(text.begin(), text.end(),            
-			    std::back_inserter(str),
-			    std::ptr_fun<int, int>(&std::ispunct));	
-	// To lower case
-	std::transform(str.begin(), str.end(), str.begin(),
-	                   [](unsigned char c) { return std::tolower(c); });
+	str = term_prep(remove);
+
 	// Remove already existing terms from set
 	std::vector<std::string> removeTerms;
 	head = str.find_first_not_of(delim, 0);
@@ -170,4 +157,18 @@ namespace rocksdb {
 
 	return std::make_pair(at, rt);
     }
+    
+    string IndexMerger::term_prep(Slice * s) const {
+	//Remove punctuation characters from Slice add
+	string text = s->ToString();
+	string str;
+	std::remove_copy_if(text.begin(), text.end(),            
+			    std::back_inserter(str),
+			    std::ptr_fun<int, int>(&std::ispunct));
+	// To lower case
+	std::transform(str.begin(), str.end(), str.begin(),
+	                   [](unsigned char c) { return std::tolower(c); });
+	return str;
+    }
+
 }

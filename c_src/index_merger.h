@@ -29,6 +29,8 @@ class IndexMerger : public MergeOperator {
 
 	ERL_NIF_TERM make_remove_term(size_t size, Slice* s) const;
 
-	std::pair<ERL_NIF_TERM, ERL_NIF_TERM> diff_terms(Slice* add, Slice* remove) const;
+	std::pair<ERL_NIF_TERM, ERL_NIF_TERM> diff_terms(Slice* add,
+							 Slice* remove) const;
+	string term_prep(Slice * s) const;
 };
 }
