@@ -1,6 +1,6 @@
 #include "rocksdb_nif.h"
 #include <assert.h>
-
+//#include "util/stderr_logger.h"
 #include <iostream>
 
 using namespace rocksdb;
@@ -330,12 +330,14 @@ rocksdb::Status RestoreDB(char* bkp_path, char* db_path, char* wal_path){
     string bkp_path_str(bkp_path);
     string db_path_str(db_path);
     string wal_path_str(wal_path);
-
-    rocksdb::BackupEngineReadOnly* backup_engine;
-    rocksdb::Status status = rocksdb::BackupEngineReadOnly::Open(Env::Default(), BackupableDBOptions(bkp_path_str), &backup_engine);
-
+    rocksdb::BackupEngine *backup_engine;
+    rocksdb::BackupableDBOptions options(bkp_path_str);
+    //rocksdb::StderrLogger logger;
+    //options.info_log = &logger;
+    rocksdb::Status status = rocksdb::BackupEngine::Open(rocksdb::Env::Default(), options, &backup_engine);
     if(status.ok()) {
-	status = backup_engine->RestoreDBFromLatestBackup(db_path_str, wal_path_str);
+	RestoreOptions restore_options(false);
+	status = backup_engine->RestoreDBFromLatestBackup(db_path_str, wal_path_str, restore_options);
     }
     delete backup_engine;
     return status;
@@ -345,12 +347,14 @@ rocksdb::Status RestoreDB(char* bkp_path, char* db_path, char* wal_path, uint32_
     string bkp_path_str(bkp_path);
     string db_path_str(db_path);
     string wal_path_str(wal_path);
-
-    rocksdb::BackupEngineReadOnly* backup_engine;
-    rocksdb::Status status = rocksdb::BackupEngineReadOnly::Open(Env::Default(), BackupableDBOptions(bkp_path_str), &backup_engine);
-
+    rocksdb::BackupEngine* backup_engine;
+    rocksdb::BackupableDBOptions options(bkp_path_str);
+    //rocksdb::StderrLogger logger;
+    //options.info_log = &logger;
+    rocksdb::Status status = rocksdb::BackupEngine::Open(rocksdb::Env::Default(), options, &backup_engine);
     if(status.ok()) {
-	status = backup_engine->RestoreDBFromBackup(backup_id, db_path_str, wal_path_str);
+	RestoreOptions restore_options(false);
+	status = backup_engine->RestoreDBFromBackup(backup_id, db_path_str, wal_path_str, restore_options);
     }
     delete backup_engine;
     return status;
