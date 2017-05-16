@@ -160,6 +160,7 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     db_obj_resource* rdb = (db_obj_resource *) enif_alloc_resource(dbResource, sizeof(db_obj_resource));
 
     rdb->env_box = new rocksdb::EnvBox();
+
     if ( fix_cf_options(env, kvl, &cfd_options, cfi_options, rdb) != 0 ) {
 	enif_release_resource(rdb);
 	return enif_make_badarg(env);
@@ -167,6 +168,7 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 
     else{
 
+	/*set will hold the iterators for this db*/
 	unordered_set<void*> *set = new unordered_set<void*>;
 	mutex *mtx = new mutex;
 
@@ -175,69 +177,13 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 	ERL_NIF_TERM db_term;
 
 	vector<rocksdb::ColumnFamilyHandle*> *handles = new vector<rocksdb::ColumnFamilyHandle*>;
-	rocksdb::Status status;
-	rdb->object = open_db(options, path, &cfd_options, cfi_options, handles, &status);
-
-	/*set will hold the iterators for this db*/
 	rdb->link_set = set;
 	rdb->handles = handles;
 	rdb->cfi_options = cfi_options;
 	rdb->mtx = mtx;
-	rdb->type = DB_DEFAULT;
 
-	if(status.ok()){
-	    db_term = enif_make_resource(env, rdb);
-	    enif_release_resource(rdb);
-	    /* resource now only owned by "Erlang" */
-	    return enif_make_tuple2(env, atom_ok, db_term);
-	}
-	else{
-	    enif_release_resource(rdb);
-	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
-	    return status_tuple;
-	}
-    }
-}
-
-ERL_NIF_TERM open_db_with_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    char path[MAXPATHLEN];
-    rocksdb::DBOptions* options;
-    opt_obj_resource* opts;
-    int int_ttl;
-    int32_t ttl;
-    /*get options resource*/
-    if (argc != 3 || !enif_get_resource(env, argv[0], optionResource, (void **)&opts)) {
-	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "options"));
-    }
-
-    /*get path*/
-    if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) <1){
-	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "path"));
-    }
-
-    /*get ttl*/
-    if(!enif_get_int(env, argv[2], &int_ttl)){
-	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "ttl"));
-    }
-    else{
-
-	unordered_set<void*> *set = new unordered_set<void*>;
-	mutex *mtx = new mutex;
-
-	options = (rocksdb::DBOptions*) opts->object;
-
-	ERL_NIF_TERM db_term;
-	/* ERL_NIF_TERM status_term; */
-
-	db_obj_resource* rdb = (db_obj_resource *) enif_alloc_resource(dbResource, sizeof(db_obj_resource));
-	ttl = (int32_t)int_ttl;
 	rocksdb::Status status;
-	rdb->object = open_db_with_ttl(options, path, &ttl, &status);
-
-	/*set will hold the iterators for this db*/
-	rdb->link_set = set;
-	rdb->mtx = mtx;
-	rdb->type = DB_WITH_TTL;
+	open_db(options, path, rdb, &cfd_options, &status);
 
 	if(status.ok()){
 	    db_term = enif_make_resource(env, rdb);
@@ -1447,7 +1393,6 @@ ERL_NIF_TERM create_checkpoint_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
 
 ErlNifFunc nif_funcs[] = {
     {"open_db", 3, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
-    {"open_db_with_ttl", 3, open_db_with_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"close_db", 1, close_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"get", 3, get_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"put", 4, put_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},

@@ -1,7 +1,6 @@
 -module(rocksdb).
 
 -export([open_db/3,
-         open_db_with_ttl/3,
 	 close_db/1,
          get/3,
          put/4,
@@ -89,18 +88,6 @@ init() ->
 -spec open_db(Options :: options(), Path :: string(), CFOpts :: [term()]) ->
     {ok, DB :: db()} | {error, Reason :: any()}.
 open_db(_options, _Path, _CFOpts)->
-    erlang:nif_error(nif_library_not_loaded).
-
-%%--------------------------------------------------------------------
-%% @doc Open a rocksdb database with provided Options on provided Path.
-%% Returns {ok, DB} where DB is an NIF Resource, or {error, Reason}.
-%% @end
-%%--------------------------------------------------------------------
--spec open_db_with_ttl(Options :: options(),
-		       Path :: string(),
-		       TTL :: integer()) ->
-    {ok, DB :: db()} | {error, Reason :: any()}.
-open_db_with_ttl(_options, _Path, _TTL)->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------

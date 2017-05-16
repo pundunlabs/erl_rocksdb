@@ -30,14 +30,15 @@ typedef struct _opt_obj_resource {
 
 typedef struct _db_obj_resource {
   char allocated;
-  unordered_set<void*> *link_set;
-  mutex *mtx;
-  void *object;
+  unordered_set<void*>* link_set;
+  mutex* mtx;
+  void* object;
   ErlNifPid* pid;
+  int32_t ttl;
   char type;
-  rocksdb::EnvBox *env_box;
-  rocksdb::ColumnFamilyOptions *cfi_options;
-  vector<rocksdb::ColumnFamilyHandle*> *handles;
+  rocksdb::EnvBox* env_box;
+  rocksdb::ColumnFamilyOptions* cfi_options;
+  vector<rocksdb::ColumnFamilyHandle*>* handles;
 } db_obj_resource;
 
 typedef struct _it_obj_resource {
@@ -53,16 +54,11 @@ extern void delete_db(db_obj_resource* rdb);
 
 extern void delete_rit(it_obj_resource* rit);
 
-extern rocksdb::DB* open_db(rocksdb::DBOptions* options,
-			    char* path,
-			    rocksdb::ColumnFamilyOptions *cfd_options,
-			    rocksdb::ColumnFamilyOptions *cfi_options,
-			    vector<rocksdb::ColumnFamilyHandle*>* handle,
-			    rocksdb::Status* status);
-
-extern rocksdb::DBWithTTL* open_db_with_ttl(rocksdb::DBOptions* options,
-					    char* path, int32_t* ttl,
-					    rocksdb::Status* status);
+extern void open_db(rocksdb::DBOptions* options,
+		    char* path,
+		    db_obj_resource* rdb,
+		    rocksdb::ColumnFamilyOptions *cfd_options,
+		    rocksdb::Status* status);
 
 extern int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 			  rocksdb::ColumnFamilyOptions* cfd_options,
