@@ -8,12 +8,13 @@
 #include "utilities/merge_operators.h"
 #include "utilities/ttl/db_ttl_impl.h"
 #include "rocksdb/convenience.h"
+#include "rocksdb/env.h"
 #include <iostream>
 
 namespace rocksdb {
     TermIndexMerger::TermIndexMerger() {
 	ttlmap_ = new std::unordered_map<int,int32_t>;
-	new DBWithTTLImpl(db_);
+	env_ = Env::Default();
     }
 
     TermIndexMerger::~TermIndexMerger() {
@@ -23,22 +24,16 @@ namespace rocksdb {
     bool TermIndexMerger::FullMergeV2(const MergeOperationInput& merge_in,
 				      MergeOperationOutput* merge_out) const {
 	auto key = merge_in.key.ToString();
-	auto tid =
-	    (static_cast<uint32_t>(static_cast<unsigned char>(key[0])) << 8 |
-	    static_cast<uint32_t>(static_cast<unsigned char>(key[1])));
-	std::cout << "tid: " << tid << std::endl;
-	for ( auto it = ttlmap_->begin(); it!= ttlmap_->end(); ++it ){
-	    std::cout << " " << it->first << ":" << it->second << std::endl;
-	}
-	//auto ttl = ttlmap_->at((int)tid);
-	//auto env = db_->GetEnv();
+	auto tid = DecodeUnsigned(key.data(), 2);
+	auto ttl = ttlmap_->at((int)tid);
 	merge_out->new_value.clear();
 
-	//If last write operation ttl was expired than omit all
 	Slice back = merge_in.operand_list.back();
-	//if (db_->IsStale(back, ttl, env)) {
-	//    return true;
-//	}
+
+	//If last write operation ttl was expired than omit all
+	if ( IsStale(back, (int32_t) ttl) ) {
+	    return true;
+	}
 
 	if (merge_in.existing_value == nullptr && merge_in.operand_list.size() == 1) {
 	    // Only one operand
@@ -112,6 +107,30 @@ namespace rocksdb {
 
     void TermIndexMerger::RemoveTtlMapping(int tid) const {
 	ttlmap_->erase(tid);
+    }
+
+    uint32_t TermIndexMerger::DecodeUnsigned(const char* ptr, int bytes) const{
+	uint32_t usi = 0;
+	int shift = 0;
+	for (int i = bytes; i > 0 ; --i) {
+	    usi = usi | static_cast<uint32_t>(static_cast<unsigned char>(ptr[i-1])) << shift;
+	    shift += 8;
+	}
+	return usi;
+    }
+
+    bool TermIndexMerger::IsStale(const Slice& s, int32_t ttl) const {
+	if (ttl <= 0) {
+	    return false;
+	}
+	int64_t curtime;
+	if (!env_->GetCurrentTime(&curtime).ok()) {
+	    return false;
+	}
+	int32_t timestamp_value =
+	    DecodeUnsigned(s.data() + s.size() - 4, 4);
+	return (timestamp_value + ttl) < curtime;
+
     }
 
     std::shared_ptr<MergeOperator>

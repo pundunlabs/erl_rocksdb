@@ -26,8 +26,12 @@ namespace rocksdb {
 
 	    virtual void RemoveTtlMapping(int tid) const;
 
+	    virtual uint32_t DecodeUnsigned(const char* ptr, int bytes) const;
+
+	    virtual bool IsStale(const Slice& s, int32_t ttl) const;
+
 	private:
-	    rocksdb::DBWithTTLImpl* db_;
+	    rocksdb::Env* env_;
 	    std::unordered_map<int, int32_t>* ttlmap_;
     };
 
