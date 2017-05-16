@@ -22,11 +22,15 @@ namespace rocksdb {
     
     bool IndexMerger::FullMergeV2(const MergeOperationInput& merge_in,
 				  MergeOperationOutput* merge_out) const {
+	//Communicate with erlang node for added and removed postings.
 	update_term_index(merge_in.key, merge_in.operand_list);
+
+	//If there is no operand
 	if ( merge_in.operand_list.back().size() == 0 ) {
 	    return true;
 	}
 
+	//There is at least one operand so clear new_value
 	merge_out->new_value.clear();
 	if ( merge_in.existing_value != nullptr ) {
 	    merge_out->new_value.assign(merge_in.existing_value->data(),

@@ -13,7 +13,7 @@
 #include "rocksdb/utilities/backupable_db.h"
 #include "rocksdb/utilities/checkpoint.h"
 
-#include "descendingcomparator.h"
+#include "term_index_merger.h"
 #include "env_box.h"
 #include "erl_nif.h"
 
@@ -37,6 +37,7 @@ typedef struct _db_obj_resource {
   int32_t ttl;
   char type;
   rocksdb::EnvBox* env_box;
+  rocksdb::ColumnFamilyOptions* cfd_options;
   rocksdb::ColumnFamilyOptions* cfi_options;
   vector<rocksdb::ColumnFamilyHandle*>* handles;
 } db_obj_resource;
@@ -57,7 +58,6 @@ extern void delete_rit(it_obj_resource* rit);
 extern void open_db(rocksdb::DBOptions* options,
 		    char* path,
 		    db_obj_resource* rdb,
-		    rocksdb::ColumnFamilyOptions *cfd_options,
 		    rocksdb::Status* status);
 
 extern int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,

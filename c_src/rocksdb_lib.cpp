@@ -1,6 +1,5 @@
 #include <iostream>
 #include "rocksdb_nif.h"
-#include "term_index_merger.h"
 #include "index_merger.h"
 #include "index_filter.h"
 #include <assert.h>
@@ -38,37 +37,6 @@ namespace {
 	return -1;
     }
 
-    void delete_db_default(db_obj_resource* rdb) {
-	rocksdb::DB *db;
-	db = (rocksdb::DB*) rdb->object;
-	rdb->mtx->lock();
-	delete rdb->pid;
-	delete rdb->env_box;
-	delete rdb->cfi_options;
-	if( rdb->handles ) {
-	    for( auto h : *(rdb->handles) ) { delete h; }
-	}
-	delete rdb->link_set;
-	delete db;
-	rdb->allocated = 0;
-	rdb->mtx->unlock();
-    }
-
-    void delete_db_with_ttl(db_obj_resource* rdb) {
-	rocksdb::DBWithTTL *db;
-	db = (rocksdb::DBWithTTL*) rdb->object;
-	rdb->mtx->lock();
-	delete rdb->pid;
-	delete rdb->env_box;
-	delete rdb->cfi_options;
-	if( rdb->handles ) {
-	    for( auto h : *(rdb->handles) ) { delete h; }
-	}
-	delete rdb->link_set;
-	delete db;
-	rdb->allocated = 0;
-	rdb->mtx->unlock();
-    }
 }
 
 void init_lib_atoms(ErlNifEnv* env) {
@@ -90,12 +58,29 @@ void init_lib_atoms(ErlNifEnv* env) {
 }
 
 void delete_db(db_obj_resource* rdb) {
+    rdb->mtx->lock();
+    delete rdb->pid;
+    delete rdb->env_box;
+    delete rdb->cfd_options;
+    delete rdb->cfi_options;
+    if( rdb->handles ) {
+        for( auto h : *(rdb->handles) ) { delete h; }
+    }
+    delete rdb->link_set;
+
     if(rdb->type == DB_WITH_TTL) {
-	delete_db_with_ttl( rdb );
+	rocksdb::DBWithTTL *db;
+	db = (rocksdb::DBWithTTL*) rdb->object;
+	delete db;
     }
     else {
-	delete_db_default ( rdb);
+	rocksdb::DB *db;
+	db = (rocksdb::DB*) rdb->object;
+	delete db;
     }
+
+    rdb->allocated = 0;
+    rdb->mtx->unlock();
 }
 
 void delete_rit(it_obj_resource* rit) {
@@ -166,7 +151,6 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	}
 	if(strcmp(temp, "ttl") == 0) {
 	    int int_ttl;
-	    int32_t ttl;
 	    if(!enif_get_int(env, tuple[1], &int_ttl)) {
 		return -1;
 	    }
@@ -292,11 +276,10 @@ int init_writeoptions(ErlNifEnv* env,
 void open_db(rocksdb::DBOptions* options,
 	     char* path,
 	     db_obj_resource* rdb,
-	     rocksdb::ColumnFamilyOptions* cfd_options,
 	     rocksdb::Status* status) {
     string path_string(path);
     vector<rocksdb::ColumnFamilyDescriptor> column_families;
-    column_families.push_back(rocksdb::ColumnFamilyDescriptor(rocksdb::kDefaultColumnFamilyName, *cfd_options));
+    column_families.push_back(rocksdb::ColumnFamilyDescriptor(rocksdb::kDefaultColumnFamilyName, *(rdb->cfd_options)));
     column_families.push_back(rocksdb::ColumnFamilyDescriptor("index", *(rdb->cfi_options)));
 
     if (rdb->type == DB_WITH_TTL) {

@@ -117,10 +117,6 @@ void writeoption_destructor(ErlNifEnv* env, void* _wopts) {
     opt_obj_resource *wopts = (opt_obj_resource*) _wopts;
     delete (rocksdb::WriteOptions*) wopts->object;
 }
-void pid_destructor(ErlNifEnv* env, void* _pid) {
-    ErlNifPid *pid = (ErlNifPid*) _pid;
-    delete pid;
-}
 
 /*Test NIFs for experimenting*/
 ERL_NIF_TERM resource_test_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -145,7 +141,7 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     rocksdb::DBOptions* options;
     opt_obj_resource* opts;
     ERL_NIF_TERM kvl = argv[2];
-    rocksdb::ColumnFamilyOptions cfd_options = rocksdb::ColumnFamilyOptions();
+    rocksdb::ColumnFamilyOptions* cfd_options = new rocksdb::ColumnFamilyOptions();
     rocksdb::ColumnFamilyOptions* cfi_options = new rocksdb::ColumnFamilyOptions();
 
     /*get options resource*/
@@ -154,14 +150,14 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     }
 
     /*get path*/
-    if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) <1){
+    if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) < 1){
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "path"));
     }
     db_obj_resource* rdb = (db_obj_resource *) enif_alloc_resource(dbResource, sizeof(db_obj_resource));
 
     rdb->env_box = new rocksdb::EnvBox();
 
-    if ( fix_cf_options(env, kvl, &cfd_options, cfi_options, rdb) != 0 ) {
+    if ( fix_cf_options(env, kvl, cfd_options, cfi_options, rdb) != 0 ) {
 	enif_release_resource(rdb);
 	return enif_make_badarg(env);
     }
@@ -179,11 +175,12 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 	vector<rocksdb::ColumnFamilyHandle*> *handles = new vector<rocksdb::ColumnFamilyHandle*>;
 	rdb->link_set = set;
 	rdb->handles = handles;
+	rdb->cfd_options = cfd_options;
 	rdb->cfi_options = cfi_options;
 	rdb->mtx = mtx;
 
 	rocksdb::Status status;
-	open_db(options, path, rdb, &cfd_options, &status);
+	open_db(options, path, rdb, &status);
 
 	if(status.ok()){
 	    db_term = enif_make_resource(env, rdb);
@@ -472,6 +469,49 @@ ERL_NIF_TERM term_index_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     }
 }
 
+ERL_NIF_TERM add_index_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    db_obj_resource *rdb;
+    /* get db_ptr resource */
+    if (argc != 3 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+    int tid;
+    /*get tid integer*/
+    if (!enif_get_int(env, argv[1], &tid)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "tid"));
+    }
+    int ttl;
+    /*get ttl integer*/
+    if (!enif_get_int(env, argv[2], &ttl)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "ttl"));
+    }
+    auto merge_operator = rdb->cfd_options->merge_operator;
+    auto op = std::static_pointer_cast<rocksdb::TermIndexMerger>(merge_operator);
+    if (op) {
+	op->AddTtlMapping(tid, (int32_t)ttl);
+    }
+    return atom_ok;
+}
+
+ERL_NIF_TERM remove_index_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    db_obj_resource *rdb;
+    /* get db_ptr resource */
+    if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+    int tid;
+    /*get tid integer*/
+    if (!enif_get_int(env, argv[1], &tid)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "tid"));
+    }
+    auto merge_operator = rdb->cfd_options->merge_operator;
+    auto op = std::static_pointer_cast<rocksdb::TermIndexMerger>(merge_operator);
+    if (op) {
+	op->RemoveTtlMapping(tid);
+    }
+    return atom_ok;
+}
+
 ERL_NIF_TERM index_merge_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     db_obj_resource *rdb;
     opt_obj_resource* wopts;
@@ -497,7 +537,7 @@ ERL_NIF_TERM index_merge_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
     }
 
     /*get value resource*/
-    if(enif_get_string(env, argv[3], term, sizeof(term), ERL_NIF_LATIN1) <1){
+    if(enif_get_string(env, argv[3], term, sizeof(term), ERL_NIF_LATIN1) < 1){
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "value"));
     }
 
@@ -666,7 +706,7 @@ ERL_NIF_TERM repair_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) 
     rocksdb::DBOptions* options;
 
     /* get path */
-    if(argc != 2 || enif_get_string(env, argv[0], path, sizeof(path), ERL_NIF_LATIN1) <1){
+    if(argc != 2 || enif_get_string(env, argv[0], path, sizeof(path), ERL_NIF_LATIN1) < 1){
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "path"));
     }
 
@@ -782,7 +822,6 @@ ERL_NIF_TERM read_range_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     opt_obj_resource *ropts;
     rocksdb::ReadOptions *readoptions;
     db_obj_resource *rdb;
-    rocksdb::ColumnFamilyOptions *cfd_options;
     int arity;
     const ERL_NIF_TERM* range_array;
     ErlNifBinary bin;
@@ -1241,7 +1280,7 @@ ERL_NIF_TERM backup_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) 
     }
 
     /*get path*/
-    if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) <1){
+    if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) < 1){
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "path"));
     }
     else{
@@ -1260,7 +1299,7 @@ ERL_NIF_TERM get_backup_info_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
     char path[MAXPATHLEN];
 
     /* get path  */
-    if (argc != 1 || enif_get_string(env, argv[0], path, sizeof(path), ERL_NIF_LATIN1) <1) {
+    if (argc != 1 || enif_get_string(env, argv[0], path, sizeof(path), ERL_NIF_LATIN1) < 1) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "bkp_path"));
     }
     else{
@@ -1308,15 +1347,15 @@ ERL_NIF_TERM restore_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     char wal_path[MAXPATHLEN];
 
     /* get bkp path  */
-    if (argc != 3 || enif_get_string(env, argv[0], bkp_path, sizeof(bkp_path), ERL_NIF_LATIN1) <1) {
+    if (argc != 3 || enif_get_string(env, argv[0], bkp_path, sizeof(bkp_path), ERL_NIF_LATIN1) < 1) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "bkp_path"));
     }
     /*get db path*/
-    if(enif_get_string(env, argv[1], db_path, sizeof(db_path), ERL_NIF_LATIN1) <1){
+    if(enif_get_string(env, argv[1], db_path, sizeof(db_path), ERL_NIF_LATIN1) < 1){
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "db_path"));
     }
     /*get wal path*/
-    if(enif_get_string(env, argv[2], wal_path, sizeof(wal_path), ERL_NIF_LATIN1) <1){
+    if(enif_get_string(env, argv[2], wal_path, sizeof(wal_path), ERL_NIF_LATIN1) < 1){
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "wal_path"));
     }
     else{
@@ -1337,15 +1376,15 @@ ERL_NIF_TERM restore_db_by_id_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM a
     char wal_path[MAXPATHLEN];
     int backup_id;
     /* get bkp path  */
-    if (argc != 4 || enif_get_string(env, argv[0], bkp_path, sizeof(bkp_path), ERL_NIF_LATIN1) <1) {
+    if (argc != 4 || enif_get_string(env, argv[0], bkp_path, sizeof(bkp_path), ERL_NIF_LATIN1) < 1) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "bkp_path"));
     }
     /*get db path*/
-    if(enif_get_string(env, argv[1], db_path, sizeof(db_path), ERL_NIF_LATIN1) <1){
+    if(enif_get_string(env, argv[1], db_path, sizeof(db_path), ERL_NIF_LATIN1) < 1){
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "db_path"));
     }
     /*get wal path*/
-    if(enif_get_string(env, argv[2], wal_path, sizeof(wal_path), ERL_NIF_LATIN1) <1){
+    if(enif_get_string(env, argv[2], wal_path, sizeof(wal_path), ERL_NIF_LATIN1) < 1){
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "wal_path"));
     }
 
@@ -1375,7 +1414,7 @@ ERL_NIF_TERM create_checkpoint_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
     }
 
     /*get path*/
-    if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) <1){
+    if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) < 1){
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "path"));
     }
     else{
@@ -1399,7 +1438,10 @@ ErlNifFunc nif_funcs[] = {
     {"delete", 3, delete_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"write", 4, write_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"index_merge", 4, index_merge_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+
     {"term_index", 4, term_index_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"add_index_ttl", 3, add_index_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"remove_index_ttl", 2, remove_index_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
     {"options", 1, options_nif},
     {"readoptions", 1, readoptions_nif},

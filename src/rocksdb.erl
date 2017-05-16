@@ -7,7 +7,9 @@
          delete/3,
          write/4,
 	 index_merge/4,
-	 term_index/4]).
+	 term_index/4,
+	 add_index_ttl/3,
+	 remove_index_ttl/2]).
 
 -export([options/1,
 	 readoptions/1,
@@ -161,7 +163,25 @@ index_merge(_db, _writeoptions, _Key, _Value)->
 -spec term_index(DB :: db(), WriteOptions :: writeoptions(),
 	  Term :: key(), Key :: key()) ->
     ok | {error, Reason :: any()}.
-term_index(_db, _writeoptions, _Term, _Key)->
+term_index(_db, _writeoptions, _Term, _Key) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Report a new ttl for table id Tid to term indexer.
+%% @end
+%%--------------------------------------------------------------------
+-spec add_index_ttl(DB :: db(), Tid :: integer(), Ttl :: integer()) ->
+    ok | {error, Reason :: any()}.
+add_index_ttl(_db, _tid, _ttl) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Report removal of ttl for table id Tid to term indexer.
+%% @end
+%%--------------------------------------------------------------------
+-spec remove_index_ttl(DB :: db(), Tid :: integer()) ->
+    ok | {error, Reason :: any()}.
+remove_index_ttl(_db, _tid) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %% Declaring structs and constructing objects
