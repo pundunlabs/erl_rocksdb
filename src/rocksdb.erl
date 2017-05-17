@@ -8,7 +8,7 @@
          write/4,
 	 index_merge/4,
 	 term_index/4,
-	 add_index_ttl/3,
+	 add_index_ttl/2,
 	 remove_index_ttl/2]).
 
 -export([options/1,
@@ -170,9 +170,9 @@ term_index(_db, _writeoptions, _Term, _Key) ->
 %% @doc Report a new ttl for table id Tid to term indexer.
 %% @end
 %%--------------------------------------------------------------------
--spec add_index_ttl(DB :: db(), Tid :: integer(), Ttl :: integer()) ->
+-spec add_index_ttl(DB :: db(), [{Tid :: integer(), Ttl :: integer()}]) ->
     ok | {error, Reason :: any()}.
-add_index_ttl(_db, _tid, _ttl) ->
+add_index_ttl(_db, _add_list) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------

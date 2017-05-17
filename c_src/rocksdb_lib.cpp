@@ -179,7 +179,7 @@ int init_readoptions(ErlNifEnv* env,
     // 6. tailing,
     // 7. managed
     */
-    
+
     //Set verify_checksums
     temp = get_bool(env, readoptions_array[1]);
     if (temp == -1) {
@@ -188,7 +188,7 @@ int init_readoptions(ErlNifEnv* env,
     else{
 	readoptions->verify_checksums = temp;
     }
-    
+
     //Set fill_cache
     temp = get_bool(env, readoptions_array[2]);
     if (temp == -1) {
@@ -226,7 +226,7 @@ int init_writeoptions(ErlNifEnv* env,
     int temp;
     rocksdb::WriteOptions *writeoptions = new rocksdb::WriteOptions;
     *_writeoptions = writeoptions;
-    
+
     /* Representation of erlang tuple:
     // 0. rocksdb_writeoptions
     // 1. sync,
@@ -234,7 +234,7 @@ int init_writeoptions(ErlNifEnv* env,
     // 3. ignore_missing_column_families,
     // 4. no_slowdown
     */
-    
+
     //Set sync
     temp = get_bool(env, writeoptions_array[1]);
     if (temp == -1) {

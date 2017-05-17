@@ -75,7 +75,7 @@ static ERL_NIF_TERM merge_sorted_kvls_nif(ErlNifEnv* env, int argc, const ERL_NI
 
             if (at_head) {
                 maxheap.push_back( kvp );
-                at_head = false;    
+                at_head = false;
             }
             else {
                 kvl.push_back( kvp );
@@ -87,11 +87,11 @@ static ERL_NIF_TERM merge_sorted_kvls_nif(ErlNifEnv* env, int argc, const ERL_NI
 	i++;
         kvls = tail;
     }
-   
+
     /*Make the vector containing first element of each list a heap*/
     KeyValuePair comp(descending);
     make_heap (maxheap.begin(), maxheap.end(), comp);
-    
+
     /*Declare a vector that keeps Erlang NIF Term representations*/
     vector<ERL_NIF_TERM> merged_kvls;
     merged_kvls.reserve(total_kvps);
@@ -120,7 +120,7 @@ static ERL_NIF_TERM merge_sorted_kvls_nif(ErlNifEnv* env, int argc, const ERL_NI
         pop_heap ( maxheap.begin(), maxheap.end(), comp ); maxheap.pop_back();
         /*Push new element from kvl list of tag if not empty*/
         if ( !kvlq.at(tag).empty() ) {
-            maxheap.push_back( kvlq.at(tag).front() ); 
+            maxheap.push_back( kvlq.at(tag).front() );
             push_heap ( maxheap.begin(), maxheap.end(), comp );
             kvlq.at(tag).pop_front();
         }
@@ -206,4 +206,3 @@ static ErlNifFunc nif_funcs[] = {
 };
 
 ERL_NIF_INIT(rocksdb_utils, nif_funcs, load, reload, upgrade, NULL)
-

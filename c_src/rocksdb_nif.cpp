@@ -46,7 +46,7 @@ int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info){
 	    NULL);
 
     optionResource = enif_open_resource_type(env,
-	    "rocksdb_nif", 
+	    "rocksdb_nif",
 	    "options_resource",
 	    option_destructor,
 	    resource_flags,
@@ -160,9 +160,7 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     if ( fix_cf_options(env, kvl, cfd_options, cfi_options, rdb) != 0 ) {
 	enif_release_resource(rdb);
 	return enif_make_badarg(env);
-    }
-
-    else{
+    } else {
 
 	/*set will hold the iterators for this db*/
 	unordered_set<void*> *set = new unordered_set<void*>;
@@ -182,13 +180,12 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 	rocksdb::Status status;
 	open_db(options, path, rdb, &status);
 
-	if(status.ok()){
+	if(status.ok()) {
 	    db_term = enif_make_resource(env, rdb);
 	    enif_release_resource(rdb);
 	    /* resource now only owned by "Erlang" */
 	    return enif_make_tuple2(env, atom_ok, db_term);
-	}
-	else{
+	} else {
 	    enif_release_resource(rdb);
 	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
 	    return status_tuple;
@@ -375,7 +372,6 @@ ERL_NIF_TERM write_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     vector<rocksdb::Slice> put_keys;
     vector<rocksdb::Slice> put_values;
 
-
     while(enif_get_list_cell(env, delete_list, &head, &tail)) {
 	if(!enif_inspect_binary(env, head, &bin)) {
 	    return enif_make_badarg(env);
@@ -472,23 +468,45 @@ ERL_NIF_TERM term_index_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 ERL_NIF_TERM add_index_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     db_obj_resource *rdb;
     /* get db_ptr resource */
-    if (argc != 3 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+    if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
-    int tid;
-    /*get tid integer*/
-    if (!enif_get_int(env, argv[1], &tid)) {
-	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "tid"));
+
+    ERL_NIF_TERM head, tail;
+    ERL_NIF_TERM add_list = argv[1];
+    unsigned int list_size;
+
+    /* get {tid, ttl} list resource */
+    if (!enif_get_list_length(env, add_list, &list_size)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "list"));
     }
-    int ttl;
-    /*get ttl integer*/
-    if (!enif_get_int(env, argv[2], &ttl)) {
-	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "ttl"));
+    vector< pair<int,int> > list;
+    const ERL_NIF_TERM* tuple;
+    int arity;
+    while(enif_get_list_cell(env, add_list, &head, &tail)) {
+	if( !enif_get_tuple(env, head, &arity, &tuple) ) {
+	    return enif_make_badarg(env);
+	}
+	/*get tid integer*/
+	int tid;
+	if( arity != 2 || !enif_get_int(env, tuple[0], &tid) ) {
+	    return enif_make_tuple2(env, atom_error, enif_make_atom(env, "tid"));
+	}
+	/*get ttl integer*/
+	int ttl;
+	if ( !enif_get_int(env, tuple[1], &ttl) ) {
+	    return enif_make_tuple2(env, atom_error, enif_make_atom(env, "ttl"));
+	}
+	list.push_back( std::make_pair(tid, ttl) );
+	add_list = tail;
     }
+
     auto merge_operator = rdb->cfd_options->merge_operator;
     auto op = std::static_pointer_cast<rocksdb::TermIndexMerger>(merge_operator);
     if (op) {
-	op->AddTtlMapping(tid, (int32_t)ttl);
+	for (auto it = list.begin() ; it != list.end(); ++it){
+	    op->AddTtlMapping(it->first, (int32_t)it->second);
+	}
     }
     return atom_ok;
 }
@@ -1440,7 +1458,7 @@ ErlNifFunc nif_funcs[] = {
     {"index_merge", 4, index_merge_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
     {"term_index", 4, term_index_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
-    {"add_index_ttl", 3, add_index_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"add_index_ttl", 2, add_index_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"remove_index_ttl", 2, remove_index_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
     {"options", 1, options_nif},

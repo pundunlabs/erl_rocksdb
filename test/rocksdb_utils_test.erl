@@ -27,8 +27,8 @@
 %%--------------------------------------------------------------------
 -spec time_compare(KVLs :: [kvl()]) -> {T1 :: integer(), T2 :: integer()}.
 time_compare(KVLs) ->
-    {T1, _} = timer:tc(?MODULE, merge_sorted_kvls, [KVLs]), 
-    {T2, _} = timer:tc(?MODULE, merge_keymerge_kvls, [KVLs]), 
+    {T1, _} = timer:tc(?MODULE, merge_sorted_kvls, [KVLs]),
+    {T2, _} = timer:tc(?MODULE, merge_keymerge_kvls, [KVLs]),
     {T1, T2}.
 
 %%--------------------------------------------------------------------
@@ -102,7 +102,7 @@ get_modular_seq(Start, Stop, Mod, Rem) ->
     [ begin
 	Str = list_to_binary(integer_to_list(X)),
 	Data = list_to_binary("Data "++Str),
-	{Str, Data} 
+	{Str, Data}
       end || X <- lists:seq(Stop, Start, -1), X rem Mod == Rem].
 
 %%--------------------------------------------------------------------

@@ -19,7 +19,7 @@ namespace rocksdb {
     IndexMerger::~IndexMerger() {
 	enif_free_env(env_);
     }
-    
+
     bool IndexMerger::FullMergeV2(const MergeOperationInput& merge_in,
 				  MergeOperationOutput* merge_out) const {
 	//Communicate with erlang node for added and removed postings.
@@ -43,7 +43,7 @@ namespace rocksdb {
     }
 
     const char* IndexMerger::Name() const { return "IndexMerger"; }
-    
+
     void IndexMerger::update_term_index(const Slice& key,
 					const std::vector<Slice> list) const {
 	ErlNifBinary binkey;
@@ -52,18 +52,18 @@ namespace rocksdb {
 	memcpy(binkey.data, key.data(), key.size());
 	ERL_NIF_TERM keyTerm = enif_make_binary(env_, &binkey);
 	ERL_NIF_TERM addTerm, removeTerm;
-	
+
 	size_t size = list.size();
 	auto add = list[size-1];
 	auto remove = list[size-2];
-	
+
 	if ( size > 1 && add.size() > 0 && remove.size() > 0 ) {
 	    std::tie(addTerm, removeTerm) = diff_terms(&add, &remove);
 	}else {
 	    addTerm = make_add_term(&add);
 	    removeTerm = make_remove_term(size, &remove);
 	}
-	
+
 	tuple = enif_make_tuple4(this->env_,
 				 atom_index_update,
 				 keyTerm,
@@ -85,7 +85,7 @@ namespace rocksdb {
 	    return this->atom_undefined;
 	}
     }
-    
+
     ERL_NIF_TERM IndexMerger::make_remove_term(size_t size, Slice* s) const {
 	if ( size > 1 && s->size() > 0 ){
 	    string str = term_prep(s);
@@ -96,12 +96,12 @@ namespace rocksdb {
 	    return this->atom_undefined;
 	}
     }
-    
+
     std::pair<ERL_NIF_TERM, ERL_NIF_TERM> IndexMerger::diff_terms(Slice* add,
 								  Slice* remove) const {
 	string str = term_prep(add);
 	// Populate a set of incoming terms
-	std::unordered_multiset<std::string> terms;
+	std::unordered_set<std::string> terms;
 	std::string delim = " \t\n\v\f\r";
 	auto head = str.find_first_not_of(delim, 0);
 	auto tail = str.find_first_of(delim, head);
@@ -114,19 +114,17 @@ namespace rocksdb {
 	str.clear();
 	str = term_prep(remove);
 
-	// Remove already existing terms from set
+	// DO NOT Remove already existing terms from set
+	// We update term index with new TS to overwrite old TS
 	std::vector<std::string> removeTerms;
 	head = str.find_first_not_of(delim, 0);
 	tail = str.find_first_of(delim, head);
 	while ( string::npos != tail || string::npos != head ) {
 	    auto rem = str.substr(head, tail - head);
 	    auto it = terms.find(rem);
-	    if ( it!= terms.end() ) {
-		terms.erase(it);
-	    } else {
+	    if ( it == terms.end() ) {
 		removeTerms.push_back(rem);
 	    }
-
 	    head = str.find_first_not_of(delim, tail);
 	    tail = str.find_first_of(delim, head);
 	}
@@ -166,7 +164,7 @@ namespace rocksdb {
 	//Remove punctuation characters from Slice add
 	string text = s->ToString();
 	string str;
-	std::remove_copy_if(text.begin(), text.end(),            
+	std::remove_copy_if(text.begin(), text.end(),
 			    std::back_inserter(str),
 			    std::ptr_fun<int, int>(&std::ispunct));
 	// To lower case
