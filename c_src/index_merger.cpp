@@ -128,7 +128,7 @@ namespace rocksdb {
 	    head = str.find_first_not_of(delim, tail);
 	    tail = str.find_first_of(delim, head);
 	}
-	
+
 	// Populate added terms from remaining set
 	std::stringstream ss;
 	for( auto it = terms.begin(); it != terms.end(); ++it ) {
@@ -159,7 +159,7 @@ namespace rocksdb {
 
 	return std::make_pair(at, rt);
     }
-    
+
     string IndexMerger::term_prep(Slice * s) const {
 	//Remove punctuation characters from Slice add
 	string text = s->ToString();

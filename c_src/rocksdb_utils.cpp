@@ -58,7 +58,7 @@ static ERL_NIF_TERM merge_sorted_kvls_nif(ErlNifEnv* env, int argc, const ERL_NI
         if(!enif_get_list_length(env, head, &len)) {
             return enif_make_badarg(env);
         }
-	deque <KeyValuePair> kvl; 
+	deque <KeyValuePair> kvl;
         bool at_head = true;
         while(enif_get_list_cell(env, head, &h, &t)){
             if(!enif_get_tuple(env, h, &arity, &tuple)) {

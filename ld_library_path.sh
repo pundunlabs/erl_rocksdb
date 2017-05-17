@@ -10,4 +10,3 @@ else
 fi
 echo $LD_LIBRARY_PATH
 $*
-

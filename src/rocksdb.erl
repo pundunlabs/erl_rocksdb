@@ -45,7 +45,7 @@
               it/0,
 	      options/0,
               writeoptions/0,
-              readoptions/0]).	 
+              readoptions/0]).
 
 -on_load(init/0).
 
@@ -63,7 +63,7 @@
 
 init() ->
     Dir = "../priv",
-    PrivDir = 
+    PrivDir =
         case code:priv_dir(rocksdb) of
             {error, _} ->
                 case code:which(?MODULE) of
