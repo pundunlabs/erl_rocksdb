@@ -47,7 +47,7 @@
 %%--------------------------------------------------------------------
 -spec options_test() -> any().
 options_test()->
-    ?assertMatch({ok, _Options}, 
+    ?assertMatch({ok, _Options},
 		 rocksdb:options(#rocksdb_options{comparator=0,
 						  create_if_missing=true})).
 
@@ -57,7 +57,7 @@ options_test()->
 %%--------------------------------------------------------------------
 -spec readoptions_test() -> any().
 readoptions_test()->
-    ?assertMatch({ok, _ReadOptions}, 
+    ?assertMatch({ok, _ReadOptions},
 		 rocksdb:readoptions(#rocksdb_readoptions{})).
 
 %%--------------------------------------------------------------------
@@ -66,7 +66,7 @@ readoptions_test()->
 %%--------------------------------------------------------------------
 -spec writeoptions_test() -> any().
 writeoptions_test()->
-    ?assertMatch({ok, _WriteOptions}, 
+    ?assertMatch({ok, _WriteOptions},
 		 rocksdb:writeoptions(#rocksdb_writeoptions{})).
 
 %%--------------------------------------------------------------------
@@ -195,7 +195,7 @@ approximate_sizes_test() ->
     ?assertEqual(ok, close_db(DB)).
 
 %%--------------------------------------------------------------------
-%% @doc Test aproximate byte size for the data stored in a rocksdb 
+%% @doc Test aproximate byte size for the data stored in a rocksdb
 %% database.
 %% @end
 %%--------------------------------------------------------------------
@@ -346,7 +346,7 @@ destroy_db_test()->
 %% @end
 %%--------------------------------------------------------------------
 -spec concurrency_basic(N :: pos_integer(), Count :: pos_integer()) -> {ok, L1 :: [{pid(), pos_integer()}]}.
-concurrency_basic(N, Count)-> 
+concurrency_basic(N, Count)->
     {ok, Options} = options(),
     {ok, DB} = rocksdb:open_db(Options, "/tmp/basicdb"),
     {ok, WriteOptions} = writeoptions(),
@@ -362,7 +362,7 @@ concurrency_basic(N, Count)->
 		 lists:map(Put, lists:seq(1,Count)),
 		 Pid ! {self(), Count}
 	 end,
-    F2 = fun(Key, Vals, Acc) -> [{Key, Vals} | Acc] end, 
+    F2 = fun(Key, Vals, Acc) -> [{Key, Vals} | Acc] end,
     List = lists:seq(1, N),
     L1 = phofs:mapreduce(F1, F2, [], List),
     ok = close_db(DB),
@@ -414,7 +414,7 @@ put_get_delete(N)->
 
 %%--------------------------------------------------------------------
 %% @doc Test function that opens a rocksdb database under "/tmp/basicdb" and
-%% performs N number of put operations on it. 
+%% performs N number of put operations on it.
 %% @end
 %%--------------------------------------------------------------------
 -spec put_n(N :: pos_integer()) -> ok.
@@ -436,7 +436,7 @@ put_n(N)->
 
 %%--------------------------------------------------------------------
 %% @doc Test function that opens a rocksdb database under "/tmp/basicdb" and
-%% performs get operation on it using provided Key. 
+%% performs get operation on it using provided Key.
 %% @end
 %%--------------------------------------------------------------------
 -spec get_key(Key :: term()) -> term().
@@ -451,7 +451,7 @@ get_key(Key)->
 
 %%--------------------------------------------------------------------
 %% @doc Test function that opens a rocksdb database under "/tmp/basicdb" and
-%% performs N number of batch writes on it. 
+%% performs N number of batch writes on it.
 %% @end
 %%--------------------------------------------------------------------
 -spec write_n(N :: pos_integer()) -> ok.
@@ -474,7 +474,7 @@ write_n(N)->
 
 %%--------------------------------------------------------------------
 %% @doc  Test function that opens a rocksdb database under "/tmp/basicdb" and
-%% returns the DB reference that corresponds to a NIF resource object. 
+%% returns the DB reference that corresponds to a NIF resource object.
 %% @end
 %%--------------------------------------------------------------------
 -spec open_db(Path :: string()) -> {ok, DB :: binary()} | {error, Reason :: any()}.
@@ -496,28 +496,28 @@ close_db(DB)->
     ok = rocksdb:close_db(DB).
 
 %%--------------------------------------------------------------------
-%% @doc Basic test that performs get operation on a rocksdb database 
+%% @doc Basic test that performs get operation on a rocksdb database
 %% referenced by a DB resource object using provided Key.
 %% @end
 %%--------------------------------------------------------------------
--spec get(DB :: binary(), Key :: term()) -> {ok, Value :: term()} | {error, Reason :: any()}. 
+-spec get(DB :: binary(), Key :: term()) -> {ok, Value :: term()} | {error, Reason :: any()}.
 get(DB, Key)->
     {ok, ReadOptions} = readoptions(),
     {ok, _Value} = rocksdb:get(DB, ReadOptions, Key).
 
 %%--------------------------------------------------------------------
-%% @doc Basic test that performs put operation on a rocksdb database 
-%% referenced by a DB resource object using provided Key and Value. 
+%% @doc Basic test that performs put operation on a rocksdb database
+%% referenced by a DB resource object using provided Key and Value.
 %% @end
 %%--------------------------------------------------------------------
--spec put(DB :: binary(), Key :: term(), Value :: term()) -> ok | {error, Reason :: any()}. 
+-spec put(DB :: binary(), Key :: term(), Value :: term()) -> ok | {error, Reason :: any()}.
 put(DB, Key, Value)->
     {ok, WriteOptions} = writeoptions(),
     ok = rocksdb:put(DB, WriteOptions, Key, Value).
 
 %%--------------------------------------------------------------------
-%% @doc Basic test that performs delete operation on a rocksdb database 
-%% referenced by a DB resource object using provided Key. 
+%% @doc Basic test that performs delete operation on a rocksdb database
+%% referenced by a DB resource object using provided Key.
 %% @end
 %%--------------------------------------------------------------------
 -spec delete(DB :: binary(), Key :: term()) -> ok | {error, Reason :: any()}.
@@ -536,7 +536,7 @@ options()->
 				     create_if_missing=true}).
 
 %%--------------------------------------------------------------------
-%% @doc Simple test function that gets and returns a rocksdb readoptions 
+%% @doc Simple test function that gets and returns a rocksdb readoptions
 %% resource object with default values.
 %% @end
 %%--------------------------------------------------------------------
@@ -545,7 +545,7 @@ readoptions()->
     rocksdb:readoptions(#rocksdb_readoptions{}).
 
 %%--------------------------------------------------------------------
-%% @doc Simple test function that gets and returns a rocksdb writeoptions 
+%% @doc Simple test function that gets and returns a rocksdb writeoptions
 %% resource object with default values.
 %% @end
 %%--------------------------------------------------------------------
@@ -555,8 +555,8 @@ writeoptions()->
 
 
 %%--------------------------------------------------------------------
-%% @doc  Test function that detroys the contents of rocksdb database 
-%% that is specified by Path and returns ok. 
+%% @doc  Test function that detroys the contents of rocksdb database
+%% that is specified by Path and returns ok.
 %% @end
 %%--------------------------------------------------------------------
 -spec destroy_db(Path :: string()) -> ok | {error, Reason :: any()}.
@@ -571,7 +571,7 @@ destroy_db(Path)->
 
 %%--------------------------------------------------------------------
 %% @doc  Test function that tries to repair a rocksdb database that
-%% is specified by Path and returns ok. 
+%% is specified by Path and returns ok.
 %% @end
 %%--------------------------------------------------------------------
 -spec repair_db(Path :: string()) -> ok | {error, Reason :: any()}.

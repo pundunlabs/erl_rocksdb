@@ -19,7 +19,7 @@ reduce(Parent, F1, F2, Acc0, L) ->
     ReducePid = self(),
     %% Create the Map processes
     %%   One for each element X in L
-    foreach(fun(X) -> 
+    foreach(fun(X) ->
 		    spawn_link(fun() -> do_job(ReducePid, F1, X) end)
 	    end, L),
     N = length(L),
@@ -58,4 +58,3 @@ collect_replies(N, Dict) ->
 
 do_job(ReducePid, F, X) ->
     F(ReducePid, X).
-
