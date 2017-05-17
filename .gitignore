@@ -4,6 +4,8 @@ _build
 #ignore rocksdb dir
 c_src/rocksdb
 
+ebin
+
 #docs
 doc
 !doc/overview.edoc
