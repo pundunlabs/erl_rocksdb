@@ -453,7 +453,7 @@ rocksdb::Status RestoreDB(char* bkp_path,
 					    rocksdb::BackupableDBOptions(bkp_path_str),
 					    &backup_engine);
     if(status.ok()) {
-	RestoreOptions restore_options(false);
+	rocksdb::RestoreOptions restore_options(false);
 	status = backup_engine->RestoreDBFromLatestBackup(db_path_str, wal_path_str, restore_options);
     }
     delete backup_engine;
