@@ -137,7 +137,7 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	if(strcmp(temp, "term_index") == 0) {
 	    ERL_NIF_TERM add_list = tuple[1];
 	    vector< pair<int,int> > list;
-	    int res = parse_int_pairs(env, add_list, list);
+	    int res = parse_int_pairs(env, add_list, &list);
 	    if (res) {
 		cfd_options->merge_operator.reset(new rocksdb::TermIndexMerger(&list));
 	    } else {
@@ -566,7 +566,7 @@ ERL_NIF_TERM make_status_tuple(ErlNifEnv* env,
 
 int parse_int_pairs(ErlNifEnv* env,
 		     ERL_NIF_TERM add_list,
-		     std::vector< std::pair<int,int> > list) {
+		     std::vector< std::pair<int,int> >* list) {
     unsigned int list_size;
     /* get {tid, ttl} list resource */
     if (!enif_get_list_length(env, add_list, &list_size)) {
@@ -590,7 +590,7 @@ int parse_int_pairs(ErlNifEnv* env,
 	if ( !enif_get_int(env, tuple[1], &ttl) ) {
 	    return -1;
 	}
-	list.push_back( std::make_pair(tid, ttl) );
+	list->push_back( std::make_pair(tid, ttl) );
 	add_list = tail;
     }
     return 1;

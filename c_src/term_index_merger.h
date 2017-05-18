@@ -11,6 +11,7 @@
 namespace rocksdb {
     class TermIndexMerger : public MergeOperator {
 	public:
+	    explicit TermIndexMerger();
 	    explicit TermIndexMerger( std::vector<std::pair<int,int>>* list );
 	    virtual ~TermIndexMerger();
 	    virtual bool FullMergeV2(const MergeOperationInput& merge_in,

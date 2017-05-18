@@ -11,14 +11,19 @@
 #include "rocksdb/env.h"
 
 namespace rocksdb {
+    TermIndexMerger::TermIndexMerger()
+    {
+	ttlmap_ = new std::unordered_map<int,int32_t>;
+	env_ = Env::Default();
+    }
+    
     TermIndexMerger::TermIndexMerger( std::vector<std::pair<int,int>>* list )
-    : list_(std::move(list))
+    : list_(list)
     {
 	ttlmap_ = new std::unordered_map<int,int32_t>;
 	for (auto it = list_->begin() ; it != list_->end(); ++it){
 	    ttlmap_->emplace(it->first, (int32_t)it->second);
 	}
-	delete list;
 	env_ = Env::Default();
 
     }
@@ -161,7 +166,6 @@ namespace rocksdb {
 
     std::shared_ptr<MergeOperator>
 	CreateTermIndexMerger() {
-	    std::vector<std::pair<int,int>>* list;
-	    return std::make_shared<TermIndexMerger>(list);
+	    return std::make_shared<TermIndexMerger>();
 	}
 } // namespace rocksdb

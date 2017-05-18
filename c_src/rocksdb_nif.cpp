@@ -475,7 +475,7 @@ ERL_NIF_TERM add_index_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv
     ERL_NIF_TERM head, tail;
     ERL_NIF_TERM add_list = argv[1];
     vector< pair<int,int> > list;
-    int res = parse_int_pairs(env, add_list, list);
+    int res = parse_int_pairs(env, add_list, &list);
     if ( res ) {
 	auto merge_operator = rdb->cfd_options->merge_operator;
 	auto op = std::static_pointer_cast<rocksdb::TermIndexMerger>(merge_operator);
