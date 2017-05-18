@@ -1,4 +1,5 @@
 #pragma once
+#include <vector>
 #include <deque>
 #include <string>
 #include <unordered_map>
@@ -10,7 +11,7 @@
 namespace rocksdb {
     class TermIndexMerger : public MergeOperator {
 	public:
-	    explicit TermIndexMerger();
+	    explicit TermIndexMerger( std::vector<std::pair<int,int>>* list );
 	    virtual ~TermIndexMerger();
 	    virtual bool FullMergeV2(const MergeOperationInput& merge_in,
 				     MergeOperationOutput* merge_out) const override;
@@ -33,6 +34,7 @@ namespace rocksdb {
 	private:
 	    rocksdb::Env* env_;
 	    std::unordered_map<int, int32_t>* ttlmap_;
+	    std::vector<std::pair<int,int>>* list_;
     };
 
 } // namespace rocksdb

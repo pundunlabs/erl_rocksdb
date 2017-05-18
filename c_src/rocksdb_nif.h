@@ -132,4 +132,7 @@ extern rocksdb::Status CreateCheckpoint(db_obj_resource* rdb,
 
 extern ERL_NIF_TERM make_status_tuple(ErlNifEnv* env,
 				      rocksdb::Status* status);
+extern int parse_int_pairs(ErlNifEnv* env,
+			    ERL_NIF_TERM add_list,
+			    vector< pair<int,int> > list);
 #endif /*LEVELDB_NIF_H*/

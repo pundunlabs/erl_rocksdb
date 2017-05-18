@@ -11,9 +11,16 @@
 #include "rocksdb/env.h"
 
 namespace rocksdb {
-    TermIndexMerger::TermIndexMerger() {
+    TermIndexMerger::TermIndexMerger( std::vector<std::pair<int,int>>* list )
+    : list_(std::move(list))
+    {
 	ttlmap_ = new std::unordered_map<int,int32_t>;
+	for (auto it = list_->begin() ; it != list_->end(); ++it){
+	    ttlmap_->emplace(it->first, (int32_t)it->second);
+	}
+	delete list;
 	env_ = Env::Default();
+
     }
 
     TermIndexMerger::~TermIndexMerger() {
@@ -55,7 +62,7 @@ namespace rocksdb {
 	    const char* existing = merge_in.existing_value->data();
 	    auto size = merge_in.existing_value->size();
 	    std::vector< std::string > fresh;
-	    int i = 0;
+	    uint32_t i = 0;
 	    //Remove already compacted but expired postings
 	    while( i < size) {
 		auto pos = existing + i;
@@ -154,6 +161,7 @@ namespace rocksdb {
 
     std::shared_ptr<MergeOperator>
 	CreateTermIndexMerger() {
-	    return std::make_shared<TermIndexMerger>();
+	    std::vector<std::pair<int,int>>* list;
+	    return std::make_shared<TermIndexMerger>(list);
 	}
 } // namespace rocksdb

@@ -474,41 +474,20 @@ ERL_NIF_TERM add_index_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv
 
     ERL_NIF_TERM head, tail;
     ERL_NIF_TERM add_list = argv[1];
-    unsigned int list_size;
-
-    /* get {tid, ttl} list resource */
-    if (!enif_get_list_length(env, add_list, &list_size)) {
-	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "list"));
-    }
     vector< pair<int,int> > list;
-    const ERL_NIF_TERM* tuple;
-    int arity;
-    while(enif_get_list_cell(env, add_list, &head, &tail)) {
-	if( !enif_get_tuple(env, head, &arity, &tuple) ) {
-	    return enif_make_badarg(env);
+    int res = parse_int_pairs(env, add_list, list);
+    if ( res ) {
+	auto merge_operator = rdb->cfd_options->merge_operator;
+	auto op = std::static_pointer_cast<rocksdb::TermIndexMerger>(merge_operator);
+	if (op) {
+	    for (auto it = list.begin() ; it != list.end(); ++it){
+		op->AddTtlMapping(it->first, (int32_t)it->second);
+	    }
 	}
-	/*get tid integer*/
-	int tid;
-	if( arity != 2 || !enif_get_int(env, tuple[0], &tid) ) {
-	    return enif_make_tuple2(env, atom_error, enif_make_atom(env, "tid"));
-	}
-	/*get ttl integer*/
-	int ttl;
-	if ( !enif_get_int(env, tuple[1], &ttl) ) {
-	    return enif_make_tuple2(env, atom_error, enif_make_atom(env, "ttl"));
-	}
-	list.push_back( std::make_pair(tid, ttl) );
-	add_list = tail;
+	return atom_ok;
+    } else {
+	return enif_make_badarg(env);
     }
-
-    auto merge_operator = rdb->cfd_options->merge_operator;
-    auto op = std::static_pointer_cast<rocksdb::TermIndexMerger>(merge_operator);
-    if (op) {
-	for (auto it = list.begin() ; it != list.end(); ++it){
-	    op->AddTtlMapping(it->first, (int32_t)it->second);
-	}
-    }
-    return atom_ok;
 }
 
 ERL_NIF_TERM remove_index_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {

@@ -133,13 +133,16 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    }
 	    rdb->pid = pid;
 	    cfi_options->merge_operator.reset(new rocksdb::IndexMerger(pid, env_box));
-	    //rocksdb::IndexFilter *filter = new rocksdb::IndexFilter();
-	    //cfi_options->compaction_filter = filter;
 	}
 	if(strcmp(temp, "term_index") == 0) {
-	    cfd_options->merge_operator.reset(new rocksdb::TermIndexMerger());
-	    //rocksdb::IndexFilter *filter = new rocksdb::IndexFilter();
-	    //cfd_options->compaction_filter = filter;
+	    ERL_NIF_TERM add_list = tuple[1];
+	    vector< pair<int,int> > list;
+	    int res = parse_int_pairs(env, add_list, list);
+	    if (res) {
+		cfd_options->merge_operator.reset(new rocksdb::TermIndexMerger(&list));
+	    } else {
+		return -1;
+	    }
 	}
 	if(strcmp(temp, "comparator") == 0) {
 	    if(enif_get_string(env, tuple[1], temp, sizeof(temp), ERL_NIF_LATIN1) < 1) {
@@ -559,4 +562,36 @@ ERL_NIF_TERM make_status_tuple(ErlNifEnv* env,
     }
     //const char* stString = status->ToString().c_str();
     return enif_make_tuple2(env, atom_error, type);
+}
+
+int parse_int_pairs(ErlNifEnv* env,
+		     ERL_NIF_TERM add_list,
+		     std::vector< std::pair<int,int> > list) {
+    unsigned int list_size;
+    /* get {tid, ttl} list resource */
+    if (!enif_get_list_length(env, add_list, &list_size)) {
+	return -1;
+    }
+    ;
+    ERL_NIF_TERM head, tail;
+    int arity;
+    const ERL_NIF_TERM* tuple;
+    while(enif_get_list_cell(env, add_list, &head, &tail)) {
+	if( !enif_get_tuple(env, head, &arity, &tuple) ) {
+	    return -1;
+	}
+	/*get tid integer*/
+	int tid;
+	if( arity != 2 || !enif_get_int(env, tuple[0], &tid) ) {
+	    return -1;
+	}
+	/*get ttl integer*/
+	int ttl;
+	if ( !enif_get_int(env, tuple[1], &ttl) ) {
+	    return -1;
+	}
+	list.push_back( std::make_pair(tid, ttl) );
+	add_list = tail;
+    }
+    return 1;
 }
