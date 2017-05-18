@@ -8,4 +8,4 @@ if [ ! -d ${ROCKSDB_DIR} ]; then
     (cd c_src && git clone https://github.com/pundunlabs/rocksdb.git && cd rocksdb && git checkout $ROCKSDB_TAG)
 fi
 export INSTALL_PATH="."
-(cd ${ROCKSDB_DIR} && make shared_lib)
+(cd ${ROCKSDB_DIR} && make -j 4 static_lib)
