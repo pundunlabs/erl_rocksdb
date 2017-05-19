@@ -1,6 +1,6 @@
 #include "rocksdb/c.h"
-#include "options/options_parser.h"
-#include "options/options_helper.h"
+#include "util/options_parser.h"
+#include "util/options_helper.h"
 #include "rocksdb/convenience.h"
 #include "util/string_util.h"
 #include "util/sync_point.h"
