@@ -472,7 +472,6 @@ ERL_NIF_TERM add_index_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv
 	return enif_make_badarg(env);
     }
 
-    ERL_NIF_TERM head, tail;
     ERL_NIF_TERM add_list = argv[1];
     vector< pair<int,int> > list;
     int res = parse_int_pairs(env, add_list, &list);
@@ -538,7 +537,7 @@ ERL_NIF_TERM index_merge_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "value"));
     }
 
-    rocksdb::Slice key((const char*)binkey.data, (size_t) binkey.size);
+    rocksdb::Slice key(reinterpret_cast<const char*>(binkey.data));
     rocksdb::Slice value = rocksdb::Slice(term);
 
     if ( !rdb->env_box->put(key, env) ) {

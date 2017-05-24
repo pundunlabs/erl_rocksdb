@@ -1,4 +1,3 @@
-
 #include <map>
 #include "rocksdb/db.h"
 #include "erl_nif.h"
