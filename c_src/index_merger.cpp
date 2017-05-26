@@ -78,9 +78,9 @@ namespace rocksdb {
     ERL_NIF_TERM IndexMerger::make_add_term(Slice* s) const {
 	if (s->size() > 0 ){
 	    string str = term_prep(s);
-	    return enif_make_string_len(this->env_,
-					str.c_str(),
-					s->size(), ERL_NIF_LATIN1);
+	    return enif_make_string(this->env_,
+				    str.c_str(),
+				    ERL_NIF_LATIN1);
 	} else{
 	    return this->atom_undefined;
 	}
@@ -89,9 +89,9 @@ namespace rocksdb {
     ERL_NIF_TERM IndexMerger::make_remove_term(size_t size, Slice* s) const {
 	if ( size > 1 && s->size() > 0 ){
 	    string str = term_prep(s);
-	    return enif_make_string_len(this->env_,
-					str.c_str(),
-					s->size(), ERL_NIF_LATIN1);
+	    return enif_make_string(this->env_,
+				    str.c_str(),
+				    ERL_NIF_LATIN1);
 	} else {
 	    return this->atom_undefined;
 	}
@@ -139,7 +139,7 @@ namespace rocksdb {
 	if(sstr.empty()) {
 	    at = this->atom_undefined;
 	} else {
-	    at = enif_make_string_len(this->env_, sstr.c_str(), sstr.size()-1, ERL_NIF_LATIN1);
+	    at = enif_make_string(this->env_, sstr.c_str(), ERL_NIF_LATIN1);
 	}
 
 	// Populate removed terms from remove unkept terms
@@ -154,7 +154,7 @@ namespace rocksdb {
 	if(sstr.empty()) {
 	    rt = this->atom_undefined;
 	} else {
-	    rt = enif_make_string_len(this->env_, sstr.c_str(), sstr.size()-1, ERL_NIF_LATIN1);
+	    rt = enif_make_string(this->env_, sstr.c_str(), ERL_NIF_LATIN1);
 	}
 
 	return std::make_pair(at, rt);

@@ -9,7 +9,6 @@
 #include "rocksdb_nif.h"
 #include <string>
 
-#include <iostream>
 #include <vector>
 #include <unordered_map>  //std::unordered_map
 
@@ -537,7 +536,7 @@ ERL_NIF_TERM index_merge_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "value"));
     }
 
-    rocksdb::Slice key(reinterpret_cast<const char*>(binkey.data));
+    rocksdb::Slice key(reinterpret_cast<char const*>(binkey.data), binkey.size);
     rocksdb::Slice value = rocksdb::Slice(term);
 
     if ( !rdb->env_box->put(key, env) ) {
