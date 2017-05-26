@@ -149,7 +149,7 @@ write(_db, _writeoptions, _Delete_Ks, _Put_KVs)->
 %% @end
 %%--------------------------------------------------------------------
 -spec index_merge(DB :: db(), WriteOptions :: writeoptions(),
-	  Key :: key(), Value :: value()) ->
+	  Key :: binary(), Value :: binary()) ->
     ok | {error, Reason :: any()}.
 index_merge(_db, _writeoptions, _Key, _Value)->
     erlang:nif_error(nif_library_not_loaded).

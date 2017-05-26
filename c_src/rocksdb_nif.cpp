@@ -511,8 +511,7 @@ ERL_NIF_TERM index_merge_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
     db_obj_resource *rdb;
     opt_obj_resource* wopts;
     rocksdb::WriteOptions* writeoptions;
-    ErlNifBinary binkey;
-    char term [MAXPATHLEN];
+    ErlNifBinary binkey, binvalue;
 
     /* get db_ptr resource */
     if (argc != 4 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
@@ -531,13 +530,14 @@ ERL_NIF_TERM index_merge_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "key"));
     }
 
-    /*get value resource*/
-    if(enif_get_string(env, argv[3], term, sizeof(term), ERL_NIF_LATIN1) < 1){
+    /* get value resource */
+    if (!enif_inspect_binary(env, argv[3], &binvalue)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "value"));
     }
 
     rocksdb::Slice key(reinterpret_cast<char const*>(binkey.data), binkey.size);
-    rocksdb::Slice value = rocksdb::Slice(term);
+
+    rocksdb::Slice value(reinterpret_cast<char const*>(binvalue.data), binvalue.size);
 
     if ( !rdb->env_box->put(key, env) ) {
 	return enif_make_tuple2(env, atom_error, atom_key_conflict);
