@@ -154,8 +154,6 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     }
     db_obj_resource* rdb = (db_obj_resource *) enif_alloc_resource(dbResource, sizeof(db_obj_resource));
 
-    rdb->env_box = new rocksdb::EnvBox();
-
     if ( fix_cf_options(env, kvl, cfd_options, cfi_options, rdb) != 0 ) {
 	enif_release_resource(rdb);
 	return enif_make_badarg(env);
@@ -539,11 +537,7 @@ ERL_NIF_TERM index_merge_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 
     rocksdb::Slice value(reinterpret_cast<char const*>(binvalue.data), binvalue.size);
 
-    if ( !rdb->env_box->put(key, env) ) {
-	return enif_make_tuple2(env, atom_error, atom_key_conflict);
-    }
     rocksdb::Status status = IndexMerge(rdb, writeoptions, &key, &value);
-    rdb->env_box->erase(key);
 
     if (status.ok()) {
 	return atom_ok;

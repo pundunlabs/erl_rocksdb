@@ -5,7 +5,7 @@
 namespace rocksdb {
 class IndexMerger : public MergeOperator {
     public:
-	explicit IndexMerger(ErlNifPid* pid, EnvBox *env_box);
+	explicit IndexMerger(ErlNifPid* pid);
 
 	~IndexMerger();
 
@@ -20,7 +20,6 @@ class IndexMerger : public MergeOperator {
     private:
 	ErlNifEnv* env_;
 	ErlNifPid* pid_;
-	EnvBox* env_box_;
 
 	void update_term_index(const rocksdb::Slice& key,
 			       const std::vector<Slice> list) const;

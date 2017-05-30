@@ -14,7 +14,6 @@
 #include "rocksdb/utilities/checkpoint.h"
 
 #include "term_index_merger.h"
-#include "env_box.h"
 #include "erl_nif.h"
 
 #define MAXPATHLEN  255
@@ -36,7 +35,6 @@ typedef struct _db_obj_resource {
   ErlNifPid* pid;
   int32_t ttl;
   char type;
-  rocksdb::EnvBox* env_box;
   rocksdb::ColumnFamilyOptions* cfd_options;
   rocksdb::ColumnFamilyOptions* cfi_options;
   vector<rocksdb::ColumnFamilyHandle*>* handles;

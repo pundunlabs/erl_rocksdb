@@ -61,7 +61,6 @@ void init_lib_atoms(ErlNifEnv* env) {
 void delete_db(db_obj_resource* rdb) {
     rdb->mtx->lock();
     delete rdb->pid;
-    delete rdb->env_box;
     delete rdb->cfd_options;
     delete rdb->cfi_options;
     if( rdb->handles ) {
@@ -106,7 +105,6 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 		   rocksdb::ColumnFamilyOptions* cfd_options,
 		   rocksdb::ColumnFamilyOptions* cfi_options,
 		   db_obj_resource* rdb) {
-    rocksdb::EnvBox* env_box = rdb->env_box;
     unsigned int kvl_len;
     char temp[MAXPATHLEN];
 
@@ -132,7 +130,7 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 		return -1;
 	    }
 	    rdb->pid = pid;
-	    cfi_options->merge_operator.reset(new rocksdb::IndexMerger(pid, env_box));
+	    cfi_options->merge_operator.reset(new rocksdb::IndexMerger(pid));
 	}
 	if(strcmp(temp, "term_index") == 0) {
 	    ERL_NIF_TERM add_list = tuple[1];

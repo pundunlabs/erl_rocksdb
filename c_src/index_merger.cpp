@@ -9,8 +9,8 @@
 
 namespace rocksdb {
 
-    IndexMerger::IndexMerger(ErlNifPid* pid, EnvBox *env_box)
-    : pid_(pid), env_box_(env_box){
+    IndexMerger::IndexMerger(ErlNifPid* pid)
+    : pid_(pid) {
 	env_ = enif_alloc_env();
 	atom_index_update = enif_make_atom(env_, "index_update");
 	atom_undefined = enif_make_atom(env_, "undefined");
@@ -70,8 +70,7 @@ namespace rocksdb {
 				 addTerm,
 				 removeTerm);
 
-	ErlNifEnv* cp_env = this->env_box_->get(key);
-	enif_send(cp_env, this->pid_, this->env_, tuple);
+	enif_send(NULL, this->pid_, this->env_, tuple);
 	enif_clear_env(this->env_);
     }
 
