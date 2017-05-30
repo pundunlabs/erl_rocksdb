@@ -359,11 +359,9 @@ rocksdb::Status IndexMerge(db_obj_resource* rdb,
     if (rdb->type == DB_WITH_TTL) {
 	rocksdb::DBWithTTL* db = static_cast<rocksdb::DBWithTTL*>(rdb->object);
 	status = db->Merge(*writeoptions, rdb->handles->at(1), *key, *value);
-	status = db->Get(rocksdb::ReadOptions(), rdb->handles->at(1), *key, &val);
     } else {
 	rocksdb::DB* db = static_cast<rocksdb::DB*>(rdb->object);
 	status = db->Merge(*writeoptions, rdb->handles->at(1), *key, *value);
-	status = db->Get(rocksdb::ReadOptions(), rdb->handles->at(1), *key, &val);
     }
     return status;
 }
