@@ -24,11 +24,15 @@ class IndexMerger : public MergeOperator {
 	void update_term_index(const rocksdb::Slice& key,
 			       const std::vector<Slice> list) const;
 
-	ERL_NIF_TERM make_add_term(Slice* s) const;
+	ERL_NIF_TERM make_add_term(ErlNifEnv* env,
+				   Slice* s) const;
 
-	ERL_NIF_TERM make_remove_term(size_t size, Slice* s) const;
+	ERL_NIF_TERM make_remove_term(ErlNifEnv* env,
+				      size_t size,
+				      Slice* s) const;
 
-	std::pair<ERL_NIF_TERM, ERL_NIF_TERM> diff_terms(Slice* add,
+	std::pair<ERL_NIF_TERM, ERL_NIF_TERM> diff_terms(ErlNifEnv* env,
+							 Slice* add,
 							 Slice* remove) const;
 	string term_prep(Slice * s) const;
 };

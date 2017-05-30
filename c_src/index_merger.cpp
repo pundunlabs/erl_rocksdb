@@ -46,11 +46,12 @@ namespace rocksdb {
 
     void IndexMerger::update_term_index(const Slice& key,
 					const std::vector<Slice> list) const {
+	ErlNifEnv* env = enif_alloc_env();
 	ErlNifBinary binkey;
 	ERL_NIF_TERM tuple;
 	enif_alloc_binary(key.size(), &binkey);
 	memcpy(binkey.data, key.data(), key.size());
-	ERL_NIF_TERM keyTerm = enif_make_binary(env_, &binkey);
+	ERL_NIF_TERM keyTerm = enif_make_binary(env, &binkey);
 	ERL_NIF_TERM addTerm, removeTerm;
 
 	size_t size = list.size();
@@ -58,45 +59,51 @@ namespace rocksdb {
 	auto remove = list[size-2];
 
 	if ( size > 1 && add.size() > 0 && remove.size() > 0 ) {
-	    std::tie(addTerm, removeTerm) = diff_terms(&add, &remove);
+	    std::tie(addTerm, removeTerm) = diff_terms(env,
+						       &add, &remove);
 	}else {
-	    addTerm = make_add_term(&add);
-	    removeTerm = make_remove_term(size, &remove);
+	    addTerm = make_add_term(env, &add);
+	    removeTerm = make_remove_term(env, size, &remove);
 	}
 
-	tuple = enif_make_tuple4(this->env_,
+	tuple = enif_make_tuple4(env,
 				 atom_index_update,
 				 keyTerm,
 				 addTerm,
 				 removeTerm);
 
-	enif_send(NULL, this->pid_, this->env_, tuple);
-	enif_clear_env(this->env_);
+	enif_send(NULL, pid_, env, tuple);
+	enif_clear_env(env);
+	enif_free_env(env);
     }
 
-    ERL_NIF_TERM IndexMerger::make_add_term(Slice* s) const {
+    ERL_NIF_TERM IndexMerger::make_add_term(ErlNifEnv* env,
+					    Slice* s) const {
 	if (s->size() > 0 ){
 	    string str = term_prep(s);
-	    return enif_make_string(this->env_,
+	    return enif_make_string(env,
 				    str.c_str(),
 				    ERL_NIF_LATIN1);
 	} else{
-	    return this->atom_undefined;
+	    return atom_undefined;
 	}
     }
 
-    ERL_NIF_TERM IndexMerger::make_remove_term(size_t size, Slice* s) const {
+    ERL_NIF_TERM IndexMerger::make_remove_term(ErlNifEnv* env,
+					       size_t size,
+					       Slice* s) const {
 	if ( size > 1 && s->size() > 0 ){
 	    string str = term_prep(s);
-	    return enif_make_string(this->env_,
+	    return enif_make_string(env,
 				    str.c_str(),
 				    ERL_NIF_LATIN1);
 	} else {
-	    return this->atom_undefined;
+	    return atom_undefined;
 	}
     }
 
-    std::pair<ERL_NIF_TERM, ERL_NIF_TERM> IndexMerger::diff_terms(Slice* add,
+    std::pair<ERL_NIF_TERM, ERL_NIF_TERM> IndexMerger::diff_terms(ErlNifEnv* env,
+								  Slice* add,
 								  Slice* remove) const {
 	string str = term_prep(add);
 	// Populate a set of incoming terms
@@ -136,9 +143,9 @@ namespace rocksdb {
 	ERL_NIF_TERM at;
 	auto sstr = ss.str();
 	if(sstr.empty()) {
-	    at = this->atom_undefined;
+	    at = atom_undefined;
 	} else {
-	    at = enif_make_string(this->env_, sstr.c_str(), ERL_NIF_LATIN1);
+	    at = enif_make_string(env, sstr.c_str(), ERL_NIF_LATIN1);
 	}
 
 	// Populate removed terms from remove unkept terms
@@ -151,9 +158,9 @@ namespace rocksdb {
 	ERL_NIF_TERM rt;
 	sstr = ss.str();
 	if(sstr.empty()) {
-	    rt = this->atom_undefined;
+	    rt = atom_undefined;
 	} else {
-	    rt = enif_make_string(this->env_, sstr.c_str(), ERL_NIF_LATIN1);
+	    rt = enif_make_string(env, sstr.c_str(), ERL_NIF_LATIN1);
 	}
 
 	return std::make_pair(at, rt);
