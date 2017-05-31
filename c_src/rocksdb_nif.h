@@ -76,7 +76,7 @@ extern void init_db(rocksdb::DB* db);
 extern rocksdb::Status Get(db_obj_resource* rdb,
 			   rocksdb::ReadOptions* readoptions,
 			   rocksdb::Slice* key,
-			   string* value);
+			   rocksdb::PinnableSlice* value);
 
 extern rocksdb::Status Put(db_obj_resource* rdb,
 			   rocksdb::WriteOptions* writeoptions,

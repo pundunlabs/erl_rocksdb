@@ -304,12 +304,12 @@ void open_db(rocksdb::DBOptions* options,
 rocksdb::Status Get(db_obj_resource* rdb,
 		    rocksdb::ReadOptions* readoptions,
 		    rocksdb::Slice* key,
-		    string* value) {
+		    rocksdb::PinnableSlice* value) {
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
-	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Get(*readoptions, *key, value);
+	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Get(*readoptions, rdb->handles->at(0), *key, value);
     } else {
-	status = static_cast<rocksdb::DB*>(rdb->object)->Get(*readoptions, *key, value);
+	status = static_cast<rocksdb::DB*>(rdb->object)->Get(*readoptions, rdb->handles->at(0), *key, value);
     }
     return status;
 }

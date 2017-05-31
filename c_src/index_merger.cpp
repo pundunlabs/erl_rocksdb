@@ -22,9 +22,6 @@ namespace rocksdb {
 
     bool IndexMerger::FullMergeV2(const MergeOperationInput& merge_in,
 				  MergeOperationOutput* merge_out) const {
-	//Communicate with erlang node for added and removed postings.
-	update_term_index(merge_in.key, merge_in.operand_list);
-
 	//If there is no operand
 	if ( merge_in.operand_list.back().size() == 0 ) {
 	    return true;
@@ -39,6 +36,10 @@ namespace rocksdb {
 	for ( const Slice& m : merge_in.operand_list ) {
 	    merge_out->new_value.assign(m.data(), m.size());
 	}
+
+	//Communicate with erlang node for added and removed postings.
+	update_term_index(merge_in.key, merge_in.operand_list);
+
 	return true;
     }
 
@@ -59,8 +60,7 @@ namespace rocksdb {
 	auto remove = list[size-2];
 
 	if ( size > 1 && add.size() > 0 && remove.size() > 0 ) {
-	    std::tie(addTerm, removeTerm) = diff_terms(env,
-						       &add, &remove);
+	    std::tie(addTerm, removeTerm) = diff_terms(env, &add, &remove);
 	}else {
 	    addTerm = make_add_term(env, &add);
 	    removeTerm = make_remove_term(env, size, &remove);
@@ -77,8 +77,7 @@ namespace rocksdb {
 	enif_free_env(env);
     }
 
-    ERL_NIF_TERM IndexMerger::make_add_term(ErlNifEnv* env,
-					    Slice* s) const {
+    ERL_NIF_TERM IndexMerger::make_add_term(ErlNifEnv* env, Slice* s) const {
 	if (s->size() > 0 ){
 	    string str = term_prep(s);
 	    return enif_make_string(env,

@@ -1,6 +1,6 @@
 #include "rocksdb/c.h"
-#include "util/options_parser.h"
-#include "util/options_helper.h"
+#include "options/options_parser.h"
+#include "options/options_helper.h"
 #include "rocksdb/convenience.h"
 #include "util/string_util.h"
 #include "util/sync_point.h"
@@ -217,7 +217,7 @@ ERL_NIF_TERM get_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     opt_obj_resource* ropts;
     rocksdb::ReadOptions* readoptions;
     ErlNifBinary binkey;
-    std::string value;
+    rocksdb::PinnableSlice value;
     ErlNifBinary binvalue;
     ERL_NIF_TERM value_term;
 
@@ -242,8 +242,8 @@ ERL_NIF_TERM get_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     rocksdb::Status status = Get(rdb, readoptions, &key, &value);
 
     if (status.ok()) {
-	enif_alloc_binary(value.length(), &binvalue);
-	memcpy(binvalue.data, value.data(), value.length());
+	enif_alloc_binary(value.size(), &binvalue);
+	memcpy(binvalue.data, value.data(), value.size());
 	value_term = enif_make_binary(env, &binvalue);
 	/* not calling enif_release_binary since enif_make_binary transfers ownership */
 	return enif_make_tuple2(env, atom_ok, value_term);
