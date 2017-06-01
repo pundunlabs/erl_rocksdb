@@ -60,12 +60,15 @@ void init_lib_atoms(ErlNifEnv* env) {
 
 void delete_db(db_obj_resource* rdb) {
     rdb->mtx->lock();
-    delete rdb->pid;
+
     delete rdb->cfd_options;
     delete rdb->cfi_options;
+
     if( rdb->handles ) {
         for( auto h : *(rdb->handles) ) { delete h; }
+	delete rdb->handles;
     }
+
     delete rdb->link_set;
 
     if(rdb->type == DB_WITH_TTL) {
@@ -99,11 +102,10 @@ void delete_rit(it_obj_resource* rit) {
     delete it;
     rit->allocated = 0;
     rit->mtx->unlock();
+
 }
 
 int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
-		   rocksdb::ColumnFamilyOptions* cfd_options,
-		   rocksdb::ColumnFamilyOptions* cfi_options,
 		   db_obj_resource* rdb) {
     unsigned int kvl_len;
     char temp[MAXPATHLEN];
@@ -112,32 +114,29 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
     const ERL_NIF_TERM* tuple;
     int arity;
 
-    ErlNifPid *pid = (ErlNifPid*)malloc( sizeof(ErlNifPid));
-
     if (!enif_get_list_length(env, kvl, &kvl_len)) {
 	return -1;
     }
 
     while(enif_get_list_cell(env, kvl, &head, &tail)) {
 	if(!enif_get_tuple(env, head, &arity, &tuple)) {
-	    return enif_make_badarg(env);
+	    return -1;
 	}
 	if(arity != 2 || enif_get_string(env, tuple[0], temp, sizeof(temp), ERL_NIF_LATIN1) < 1 ) {
-	    return enif_make_badarg(env);
+	    return -1;
 	}
 	if(strcmp(temp, "pid") == 0) {
-	    if(!enif_get_local_pid(env, tuple[1], pid)) {
+	    if(!enif_get_local_pid(env, tuple[1], &rdb->pid)) {
 		return -1;
 	    }
-	    rdb->pid = pid;
-	    cfi_options->merge_operator.reset(new rocksdb::IndexMerger(pid));
+	    rdb->cfi_options->merge_operator.reset(new rocksdb::IndexMerger(&rdb->pid));
 	}
 	if(strcmp(temp, "term_index") == 0) {
 	    ERL_NIF_TERM add_list = tuple[1];
 	    vector< pair<int,int> > list;
 	    int res = parse_int_pairs(env, add_list, &list);
 	    if (res) {
-		cfd_options->merge_operator.reset(new rocksdb::TermIndexMerger(&list));
+		rdb->cfd_options->merge_operator.reset(new rocksdb::TermIndexMerger(&list));
 	    } else {
 		return -1;
 	    }
@@ -147,8 +146,8 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 		return -1;
 	    }
 	    if(strcmp(temp, "descending") == 0) {
-		cfi_options->comparator = rocksdb::ReverseBytewiseComparator();
-		cfd_options->comparator = rocksdb::ReverseBytewiseComparator();
+		rdb->cfi_options->comparator = rocksdb::ReverseBytewiseComparator();
+		rdb->cfd_options->comparator = rocksdb::ReverseBytewiseComparator();
 	    }
 	}
 	if(strcmp(temp, "ttl") == 0) {
@@ -161,6 +160,7 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	}
         kvl = tail;
     }
+
     return 0;
 }
 
