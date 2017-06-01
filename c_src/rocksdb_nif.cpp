@@ -140,8 +140,6 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     rocksdb::DBOptions* options;
     opt_obj_resource* opts;
     ERL_NIF_TERM kvl = argv[2];
-    rocksdb::ColumnFamilyOptions* cfd_options = new rocksdb::ColumnFamilyOptions();
-    rocksdb::ColumnFamilyOptions* cfi_options = new rocksdb::ColumnFamilyOptions();
 
     /*get options resource*/
     if (argc != 3 || !enif_get_resource(env, argv[0], optionResource, (void **)&opts)) {
@@ -154,25 +152,24 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     }
     db_obj_resource* rdb = (db_obj_resource *) enif_alloc_resource(dbResource, sizeof(db_obj_resource));
 
-    if ( fix_cf_options(env, kvl, cfd_options, cfi_options, rdb) != 0 ) {
+    rdb->type = DB_DEFAULT;
+    rdb->handles = new vector<rocksdb::ColumnFamilyHandle*>;
+    rdb->link_set = new unordered_set<void*>;
+    rdb->mtx = new mutex;
+    rdb->cfd_options = new rocksdb::ColumnFamilyOptions();
+    rdb->cfi_options = new rocksdb::ColumnFamilyOptions();
+
+    if ( fix_cf_options(env, kvl, rdb) != 0 ) {
 	enif_release_resource(rdb);
 	return enif_make_badarg(env);
     } else {
 
 	/*set will hold the iterators for this db*/
-	unordered_set<void*> *set = new unordered_set<void*>;
-	mutex *mtx = new mutex;
 
 	options = (rocksdb::DBOptions*) opts->object;
 
 	ERL_NIF_TERM db_term;
 
-	vector<rocksdb::ColumnFamilyHandle*> *handles = new vector<rocksdb::ColumnFamilyHandle*>;
-	rdb->link_set = set;
-	rdb->handles = handles;
-	rdb->cfd_options = cfd_options;
-	rdb->cfi_options = cfi_options;
-	rdb->mtx = mtx;
 
 	rocksdb::Status status;
 	open_db(options, path, rdb, &status);
