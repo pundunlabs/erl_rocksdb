@@ -25,7 +25,6 @@ namespace rocksdb {
 	private:
 	    ErlNifEnv* env_;
 	    ErlNifPid* pid_;
-	    TermPrep tp_;
 
 	    std::pair<std::string, std::string> do_merge(const Slice* remove,
 							 const Slice& add) const;

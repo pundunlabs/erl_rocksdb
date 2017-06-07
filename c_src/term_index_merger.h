@@ -37,7 +37,6 @@ namespace rocksdb {
 	    rocksdb::Env* env_;
 	    std::unordered_map<int, int32_t>* ttlmap_;
 	    std::vector<std::pair<int,int>>* list_;
-	    TermPrep tp_;
     };
 
 } // namespace rocksdb

@@ -38,6 +38,7 @@ typedef struct _db_obj_resource {
   rocksdb::ColumnFamilyOptions* cfd_options;
   rocksdb::ColumnFamilyOptions* cfi_options;
   vector<rocksdb::ColumnFamilyHandle*>* handles;
+  unordered_set<string>* stopwords;
 } db_obj_resource;
 
 typedef struct _it_obj_resource {

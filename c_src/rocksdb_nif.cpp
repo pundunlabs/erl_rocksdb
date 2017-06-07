@@ -158,6 +158,7 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     rdb->mtx = new mutex;
     rdb->cfd_options = new rocksdb::ColumnFamilyOptions();
     rdb->cfi_options = new rocksdb::ColumnFamilyOptions();
+    rdb->stopwords = NULL;
 
     if ( fix_cf_options(env, kvl, rdb) != 0 ) {
 	enif_release_resource(rdb);

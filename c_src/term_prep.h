@@ -4,10 +4,64 @@
 #include <algorithm>
 #include <iostream>
 #include "rocksdb/slice.h"
+#include "rocksdb/comparator.h"
+
+struct TermComparator {
+    explicit TermComparator(const rocksdb::Comparator* c = rocksdb::BytewiseComparator())
+	: cmp(c) {}
+
+    bool operator()(const rocksdb::Slice& a,
+		    const rocksdb::Slice& b) const {
+	return cmp->Compare(a, b) < 0;
+    }
+
+    const rocksdb::Comparator* cmp;
+};
 
 class TermPrep {
     public:
-	TermPrep() {};
+	TermPrep(const rocksdb::Slice* t,
+		 const rocksdb::Slice* k,
+		 std::unordered_set<std::string>* stopwords) {
+	    const char* c = t->data();
+	    auto terms_len = t->size() - 4;
+	    const rocksdb::Slice add = rocksdb::Slice(c+4, terms_len);
+	    auto normalized = Normalize(&add);
+	    // Populate a vector of incoming terms
+	    std::string delim = " \t\n\v\f\r";
+	    auto head = normalized.find_first_not_of(delim, 0);
+	    auto tail = normalized.find_first_of(delim, head);
+	    std::string term;
+	    while ( std::string::npos != head ) {
+		size_t substr_len = ((std::string::npos == tail) ? terms_len - head : tail - head);
+		size_t term_len = substr_len + 4;
+		char* t = (char *) malloc( sizeof(char) * ( term_len ) );
+		memcpy(t, c, 4);
+		term.clear();
+		term = normalized.substr(head, substr_len);
+		auto got = stopwords->find( term );
+		if ( got == stopwords->end() ){
+		    normalized.copy(t+4, substr_len, head);
+		    terms_.emplace(rocksdb::Slice(t, term_len));
+		    terms_str_.append(term.append(" "));
+		}
+		head = normalized.find_first_not_of(delim, tail);
+		tail = normalized.find_first_of(delim, head);
+	    }
+	    auto i_k_size = k->size() - 5;
+	    index_key_ = (char *) malloc( sizeof(char) * ( i_k_size ) );
+	    memcpy(index_key_, c, 4);
+	    memcpy(index_key_+4, k->data()+5, i_k_size-4);
+	    op_ = *(k->data()+4);
+	};
+
+	~TermPrep() {
+	    for (auto it = terms_.begin(); it != terms_.end(); ++it){
+		free ((void*) it->data());
+	    }
+	    free (index_key_);
+	};
+
 	std::string Normalize(const rocksdb::Slice* s) const {
 	    //Remove punctuation characters from Slice add
 	    std::string text = s->ToString();
@@ -21,38 +75,14 @@ class TermPrep {
 	    return str;
 	}
 
-	std::vector<rocksdb::Slice> GetTerms(const rocksdb::Slice * s) const {
-	    const char* c = s->data();
-	    auto terms_len = s->size() - 4;
-	    const rocksdb::Slice add = rocksdb::Slice(c+4, terms_len);
-	    std::string str = Normalize(&add);
-	    // Populate a vector of incoming terms
-	    std::vector<rocksdb::Slice> terms;
-	    std::string delim = " \t\n\v\f\r";
-	    auto head = str.find_first_not_of(delim, 0);
-	    auto tail = str.find_first_of(delim, head);
-	    while ( std::string::npos != head ) {
-		size_t substr_len = ((std::string::npos == tail) ? terms_len - head : tail - head);
-		size_t term_len = substr_len + 4;
-		char* t = (char *) malloc( sizeof(char) * ( term_len ) );
-		memcpy(t, c, 4);
-		str.copy(t+4, substr_len, head);
-		terms.push_back(rocksdb::Slice(t, term_len));
-		head = str.find_first_not_of(delim, tail);
-		tail = str.find_first_of(delim, head);
-	    }
-	    return terms;
-	}
-	
-	void FreeTerms(std::vector<rocksdb::Slice> terms) const {
-	    for (auto it = terms.begin(); it != terms.end(); ++it){
-		free ((void *) it->data());
-	    }
-	}
+	std::set<rocksdb::Slice, TermComparator> terms_;
+	char* index_key_;
+	std::string terms_str_ = "";
+	char op_;
+	char ADD = 43;
 
     private:	
 	static int IsNotAlfaNumericOrSpace (int c) {
 	    return !(std::isalnum(c) || std::isspace(c));
 	}
 };
-

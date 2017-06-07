@@ -12,7 +12,6 @@ namespace rocksdb {
     : pid_(pid) {
 	env_ = enif_alloc_env();
 	atom_remove_term = enif_make_atom(env_, "remove_term");
-	tp_ = TermPrep();
       }
 
     IndexMerger::~IndexMerger() {
@@ -41,6 +40,7 @@ namespace rocksdb {
 	    update_term_index(merge_in.key, remove);
 	}
 
+
 	return true;
     }
 
@@ -68,7 +68,7 @@ namespace rocksdb {
 
     std::string IndexMerger::make_add_term(const Slice* s) const {
 	if (s->size() > 0 ){
-	     return tp_.Normalize(s);
+	     return s->ToString();
 	} else{
 	    return std::string();
 	}
@@ -76,7 +76,7 @@ namespace rocksdb {
 
     std::string IndexMerger::make_remove_term(const Slice* s) const {
 	if ( s != nullptr && s->size() > 0 ){
-	    return tp_.Normalize(s);
+	    return s->ToString();
 	} else {
 	    return std::string();
 	}
@@ -85,7 +85,7 @@ namespace rocksdb {
     std::pair<std::string, std::string>
 	IndexMerger::diff_terms(const Slice* add,
 				const Slice* remove) const {
-	string str = tp_.Normalize(add);
+	string str = add->ToString();
 	// Populate a set of incoming terms
 	std::unordered_set<std::string> terms;
 	std::string delim = " \t\n\v\f\r";
@@ -98,7 +98,7 @@ namespace rocksdb {
 	}
 
 	str.clear();
-	str = tp_.Normalize(remove);
+	str = remove->ToString();
 
 	// DO NOT Remove already existing terms from set
 	// We update term index with new TS to overwrite old TS
