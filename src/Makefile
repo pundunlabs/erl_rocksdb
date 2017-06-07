@@ -13,7 +13,6 @@ APP_TARGET= $(EBIN)/$(APP_FILE)
 MODULES = \
 	rocksdb \
 	rocksdb_lib \
-	rocksdb_utils
 
 ERL_FILES = $(MODULES:%=%.erl)
 ERL_BEAMS = $(MODULES:%=$(EBIN)/%.beam)
