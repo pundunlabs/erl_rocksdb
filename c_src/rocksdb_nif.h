@@ -1,6 +1,6 @@
 /* rocksdb_nif.h */
-#ifndef LEVELDB_NIF_H
-#define LEVELDB_NIF_H
+#ifndef ROCKSDB_NIF_H
+#define ROCKSDB_NIF_H
 
 #include <mutex>          // std::mutex
 #include <unordered_set>  //std::unordered_set
@@ -32,7 +32,7 @@ typedef struct _db_obj_resource {
   unordered_set<void*>* link_set;
   mutex* mtx;
   void* object;
-  ErlNifPid* pid;
+  ErlNifPid pid;
   int32_t ttl;
   char type;
   rocksdb::ColumnFamilyOptions* cfd_options;
@@ -59,8 +59,6 @@ extern void open_db(rocksdb::DBOptions* options,
 		    rocksdb::Status* status);
 
 extern int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
-			  rocksdb::ColumnFamilyOptions* cfd_options,
-			  rocksdb::ColumnFamilyOptions* cfi_options,
 			  db_obj_resource* rdb);
 
 extern int init_readoptions(ErlNifEnv* env,
@@ -133,4 +131,4 @@ extern ERL_NIF_TERM make_status_tuple(ErlNifEnv* env,
 extern int parse_int_pairs(ErlNifEnv* env,
 			    ERL_NIF_TERM add_list,
 			    vector< pair<int,int> >* list);
-#endif /*LEVELDB_NIF_H*/
+#endif /*ROCKSDB_NIF_H*/
