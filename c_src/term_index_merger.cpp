@@ -15,6 +15,7 @@ namespace rocksdb {
     {
 	ttlmap_ = new std::unordered_map<int,int32_t>;
 	env_ = Env::Default();
+	tp_ = TermPrep();
     }
 
     TermIndexMerger::TermIndexMerger( std::vector<std::pair<int,int>>* list )

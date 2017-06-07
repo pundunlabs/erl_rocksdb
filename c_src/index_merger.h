@@ -3,37 +3,43 @@
 #include "erl_nif.h"
 
 namespace rocksdb {
-class IndexMerger : public MergeOperator {
-    public:
-	explicit IndexMerger(ErlNifPid* pid);
+    class IndexMerger : public MergeOperator {
+	public:
+	    explicit IndexMerger(ErlNifPid* pid);
 
-	~IndexMerger();
+	    ~IndexMerger();
 
-	virtual bool FullMergeV2(const MergeOperationInput& merge_in,
-				 MergeOperationOutput* merge_out) const override;
+	    virtual bool FullMergeV2(const MergeOperationInput& merge_in,
+				     MergeOperationOutput* merge_out) const override;
 
-	virtual const char* Name() const override;
+	    virtual bool PartialMergeMulti(const Slice& key,
+		    const std::deque<Slice>& operand_list,
+		    std::string* new_value, Logger* logger) const
+		override;
 
-	ERL_NIF_TERM atom_index_update;
-	ERL_NIF_TERM atom_undefined;
+	    virtual const char* Name() const override;
 
-    private:
-	ErlNifEnv* env_;
-	ErlNifPid* pid_;
+	    ERL_NIF_TERM atom_remove_term;
+	    ERL_NIF_TERM atom_undefined;
 
-	void update_term_index(const rocksdb::Slice& key,
-			       const std::vector<Slice> list) const;
+	private:
+	    ErlNifEnv* env_;
+	    ErlNifPid* pid_;
+	    TermPrep tp_;
 
-	ERL_NIF_TERM make_add_term(ErlNifEnv* env,
-				   Slice* s) const;
+	    std::pair<std::string, std::string> do_merge(const Slice* remove,
+							 const Slice& add) const;
 
-	ERL_NIF_TERM make_remove_term(ErlNifEnv* env,
-				      size_t size,
-				      Slice* s) const;
+	    std::string make_add_term(const Slice* s) const;
 
-	std::pair<ERL_NIF_TERM, ERL_NIF_TERM> diff_terms(ErlNifEnv* env,
-							 Slice* add,
-							 Slice* remove) const;
-	string term_prep(Slice * s) const;
-};
+	    std::string make_remove_term(const Slice* s) const;
+
+	    std::pair<std::string, std::string> diff_terms(const Slice* add,
+							   const Slice* remove) const;
+
+	    void update_term_index(const rocksdb::Slice& key,
+				   const std::string remove) const;
+
+	    string term_prep(const Slice * s) const;
+    };
 }

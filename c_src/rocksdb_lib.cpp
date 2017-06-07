@@ -355,7 +355,6 @@ rocksdb::Status IndexMerge(db_obj_resource* rdb,
 			   rocksdb::Slice* key,
 			   rocksdb::Slice* value) {
     rocksdb::Status status;
-    std::string val;
     if (rdb->type == DB_WITH_TTL) {
 	rocksdb::DBWithTTL* db = static_cast<rocksdb::DBWithTTL*>(rdb->object);
 	status = db->Merge(*writeoptions, rdb->handles->at(1), *key, *value);
@@ -370,14 +369,21 @@ rocksdb::Status TermIndex(db_obj_resource* rdb,
 			  rocksdb::WriteOptions* writeoptions,
 			  rocksdb::Slice* term,
 			  rocksdb::Slice* key) {
+    TermPrep tp = TermPrep();
+    std::vector<rocksdb::Slice> terms = tp.GetTerms(term);
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
 	rocksdb::DBWithTTL* db = static_cast<rocksdb::DBWithTTL*>(rdb->object);
-	status = db->Merge(*writeoptions, *term, *key);
+	for (auto it = terms.begin(); it != terms.end(); ++it){
+	    status = db->Merge(*writeoptions, *it, *key);
+	}
     } else {
 	rocksdb::DB* db = static_cast<rocksdb::DB*>(rdb->object);
-	status = db->Merge(*writeoptions, *term, *key);
+	for (auto it = terms.begin(); it != terms.end(); ++it){
+	    status = db->Merge(*writeoptions, *it, *key);
+	}
     }
+    tp.FreeTerms(terms);
     return status;
 }
 

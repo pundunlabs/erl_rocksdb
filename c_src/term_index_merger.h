@@ -7,6 +7,7 @@
 #include "rocksdb/merge_operator.h"
 #include "rocksdb/slice.h"
 #include "utilities/ttl/db_ttl_impl.h"
+#include "term_prep.h"
 
 namespace rocksdb {
     class TermIndexMerger : public MergeOperator {
@@ -36,6 +37,7 @@ namespace rocksdb {
 	    rocksdb::Env* env_;
 	    std::unordered_map<int, int32_t>* ttlmap_;
 	    std::vector<std::pair<int,int>>* list_;
+	    TermPrep tp_;
     };
 
 } // namespace rocksdb
