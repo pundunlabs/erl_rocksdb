@@ -1,6 +1,4 @@
 #include <string>
-#include <vector>
-#include <unordered_set>
 #include <algorithm>
 #include <iostream>
 #include "rocksdb/slice.h"
@@ -31,16 +29,14 @@ class TermPrep {
 	    std::string delim = " \t\n\v\f\r";
 	    auto head = normalized.find_first_not_of(delim, 0);
 	    auto tail = normalized.find_first_of(delim, head);
-	    std::string term;
+	    terms_str_.reserve(terms_len);
 	    while ( std::string::npos != head ) {
 		size_t substr_len = ((std::string::npos == tail) ? terms_len - head : tail - head);
 		size_t term_len = substr_len + 4;
 		char* t = (char *) malloc( sizeof(char) * ( term_len ) );
 		memcpy(t, c, 4);
-		term.clear();
-		term = normalized.substr(head, substr_len);
-		auto got = stopwords->find( term );
-		if ( got == stopwords->end() ){
+		std::string term = normalized.substr(head, substr_len);
+		if( stopwords->count( term ) > 0 ) {
 		    normalized.copy(t+4, substr_len, head);
 		    terms_.emplace(rocksdb::Slice(t, term_len));
 		    terms_str_.append(term.append(" "));

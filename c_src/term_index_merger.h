@@ -7,7 +7,6 @@
 #include "rocksdb/merge_operator.h"
 #include "rocksdb/slice.h"
 #include "utilities/ttl/db_ttl_impl.h"
-#include "term_prep.h"
 
 namespace rocksdb {
     class TermIndexMerger : public MergeOperator {
