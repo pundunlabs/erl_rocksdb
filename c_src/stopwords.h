@@ -1,6 +1,8 @@
 #include <initializer_list>
 #include<string>
 
+static std::initializer_list<string> const empty_stopwords = {};
+
 static std::initializer_list<string> const lucene_stopwords = {
     "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
     "if", "in", "into", "is", "it", "no", "not", "of", "on", "or",

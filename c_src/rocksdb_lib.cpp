@@ -146,7 +146,21 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    }
 
 	    rdb->cfd_options->memtable_factory.reset(new rocksdb::VectorRepFactory());
-	    rdb->stopwords = new std::unordered_set<std::string> (english_stopwords);
+	    if ( !rdb->stopwords ) {
+		rdb->stopwords = new std::unordered_set<std::string> (english_stopwords);
+	    }
+	}
+	if(strcmp(temp, "stopwords") == 0) {
+	    if(enif_get_string(env, tuple[1], temp, sizeof(temp), ERL_NIF_LATIN1) < 1) {
+		return -1;
+	    }
+	    if(strcmp(temp, "empty") == 0) {
+		rdb->stopwords = new std::unordered_set<std::string> (empty_stopwords);
+	    } else if(strcmp(temp, "english") == 0) {
+		rdb->stopwords = new std::unordered_set<std::string> (english_stopwords);
+	    } else if(strcmp(temp, "lucene") == 0) {
+		rdb->stopwords = new std::unordered_set<std::string> (lucene_stopwords);
+	    }
 	}
 	if(strcmp(temp, "comparator") == 0) {
 	    if(enif_get_string(env, tuple[1], temp, sizeof(temp), ERL_NIF_LATIN1) < 1) {
