@@ -32,11 +32,11 @@ class TermPrep {
 	    terms_str_.reserve(terms_len);
 	    while ( std::string::npos != head ) {
 		size_t substr_len = ((std::string::npos == tail) ? terms_len - head : tail - head);
-		size_t term_len = substr_len + 4;
-		char* t = (char *) malloc( sizeof(char) * ( term_len ) );
-		memcpy(t, c, 4);
 		std::string term = normalized.substr(head, substr_len);
 		if( stopwords->count( term ) > 0 ) {
+		    size_t term_len = substr_len + 4;
+		    char* t = (char *) malloc( sizeof(char) * ( term_len ) );
+		    memcpy(t, c, 4);
 		    normalized.copy(t+4, substr_len, head);
 		    terms_.emplace(rocksdb::Slice(t, term_len));
 		    terms_str_.append(term.append(" "));
@@ -75,7 +75,7 @@ class TermPrep {
 	char* index_key_;
 	std::string terms_str_ = "";
 	char op_;
-	char ADD = 43;
+	const char ADD = 43;
 
     private:	
 	static int IsNotAlfaNumericOrSpace (int c) {
