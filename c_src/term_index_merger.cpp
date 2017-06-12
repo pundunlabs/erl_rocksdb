@@ -34,8 +34,7 @@ namespace rocksdb {
 
     bool TermIndexMerger::FullMergeV2(const MergeOperationInput& merge_in,
 				      MergeOperationOutput* merge_out) const {
-	auto key = merge_in.key.ToString();
-	auto tid = DecodeUnsigned(key.data(), 2);
+	auto tid = DecodeUnsigned(merge_in.key.data(), 2);
 	auto ttl = ttlmap_->at((int)tid);
 	merge_out->new_value.clear();
 	if (merge_in.existing_value == nullptr && merge_in.operand_list.size() == 1) {
@@ -62,35 +61,28 @@ namespace rocksdb {
 	    numBytes += it->size()-1;
 	}
 
-	// Prepend the *existing_value if one exists.
+	std::set< std::string > postings;
+
+	// Parse and emplace portions of the *existing_value if one exists.
 	if (merge_in.existing_value) {
 	    const char* existing = merge_in.existing_value->data();
 	    auto size = merge_in.existing_value->size();
-	    std::vector< std::string > fresh;
 	    uint32_t i = 0;
 	    //Remove already compacted but expired postings
 	    while( i < size) {
 		auto pos = existing + i;
 		auto len = DecodeUnsigned(pos, 4);
 		auto portion = len + 3;
-		if ( IsStale(Slice(pos + portion), ttl) ) {
-		    fresh.push_back(std::string(pos, portion));
+		if ( !IsStale(Slice(pos + portion), ttl) ) {
+		    postings.emplace(std::string(pos, portion));
 		}
 		i += portion;
 	    }
-	    std::string str;
-	    for (auto it = fresh.begin(); it != fresh.end(); ++it) {
-		str.append(*it);
-	    }
-	    Slice updated_value = Slice(str);
-	    merge_out->new_value.reserve(numBytes + updated_value.size());
-	    merge_out->new_value.append(updated_value.data(),
-					updated_value.size());
+	    merge_out->new_value.reserve(numBytes + size);
 	} else if (numBytes) {
 	    merge_out->new_value.reserve(numBytes);
 	}
 
-	std::set< std::string > postings;
 	for (auto it = merge_in.operand_list.begin();
 		it != merge_in.operand_list.end(); ++it) {
 	    //If operand is expired
@@ -99,18 +91,16 @@ namespace rocksdb {
 		char  op = chars[4];
 		//buf_len is size - 1 since we remove op char.
 		size_t buf_len = it->size() - 1;
-		char* buf = (char*) malloc (sizeof(char)*(buf_len));
 
-		memcpy(buf, chars, 4);
-		memcpy(buf+4, chars+5, buf_len-4);
-		std::string str = std::string(buf, buf_len);
+		std::string str;
+		str.append(chars, 4);
+		str.append(chars+5, buf_len-4);
 
 		if (op == 43) {
 		    postings.emplace(str);
 		} else if( op == 45 ) {
 		    postings.erase(str);
 		}
-		delete buf;
 	    }
 	}
 	for (auto it = postings.begin(); it != postings.end(); ++it) {

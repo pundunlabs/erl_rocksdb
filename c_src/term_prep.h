@@ -77,7 +77,7 @@ class TermPrep {
 
 	std::set<rocksdb::Slice, TermComparator> terms_;
 	char* index_key_;
-	std::string terms_str_ = "";
+	std::string terms_str_;
 	char op_;
 	const char ADD = 43;
 
