@@ -33,13 +33,17 @@ class TermPrep {
 	    while ( std::string::npos != head ) {
 		size_t substr_len = ((std::string::npos == tail) ? terms_len - head : tail - head);
 		std::string term = normalized.substr(head, substr_len);
-		if( stopwords->count( term ) > 0 ) {
+		if( stopwords->count( term ) == 0 ) {
 		    size_t term_len = substr_len + 4;
 		    char* t = (char *) malloc( sizeof(char) * ( term_len ) );
 		    memcpy(t, c, 4);
 		    normalized.copy(t+4, substr_len, head);
-		    terms_.emplace(rocksdb::Slice(t, term_len));
-		    terms_str_.append(term.append(" "));
+		    auto ret = terms_.emplace(rocksdb::Slice(t, term_len));
+		    if ( ret.second ) {
+			terms_str_.append(term.append(" "));
+		    } else {
+			free (t);
+		    }
 		}
 		head = normalized.find_first_not_of(delim, tail);
 		tail = normalized.find_first_of(delim, head);
