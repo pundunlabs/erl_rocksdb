@@ -35,14 +35,18 @@ namespace rocksdb {
     bool TermIndexMerger::FullMergeV2(const MergeOperationInput& merge_in,
 				      MergeOperationOutput* merge_out) const {
 	auto tid = DecodeUnsigned(merge_in.key.data(), 2);
-	auto ttl = ttlmap_->at((int)tid);
+	auto ttl = ttlmap_->find((int)tid);
 	merge_out->new_value.clear();
+	if ( ttl == ttlmap_->end() ){
+	    // Table does not exists anymore
+	    return true;
+	}
 	if (merge_in.existing_value == nullptr && merge_in.operand_list.size() == 1) {
 	    // Only one operand
 	    Slice back = merge_in.operand_list.back();
 	    const char* chars = back.data();
 	    //If operand is expired
-	    if ( IsStale(back, ttl) ) {
+	    if ( IsStale(back, ttl->second) ) {
 		return true;
 	    }
 	    //buf_len is size - 1 since we remove op char.
@@ -73,7 +77,7 @@ namespace rocksdb {
 		auto pos = existing + i;
 		auto len = DecodeUnsigned(pos, 4);
 		auto portion = len + 3;
-		if ( !IsStale(Slice(pos + portion), ttl) ) {
+		if ( !IsStale(Slice(pos + portion), ttl->second) ) {
 		    postings.emplace(std::string(pos, portion));
 		}
 		i += portion;
@@ -86,7 +90,7 @@ namespace rocksdb {
 	for (auto it = merge_in.operand_list.begin();
 		it != merge_in.operand_list.end(); ++it) {
 	    //If operand is expired
-	    if ( !IsStale(*it, ttl) ) {
+	    if ( !IsStale(*it, ttl->second) ) {
 		const char* chars = it->data();
 		char  op = chars[4];
 		//buf_len is size - 1 since we remove op char.
