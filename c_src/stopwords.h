@@ -9,6 +9,10 @@ static std::initializer_list<string> const lucene_stopwords = {
     "such", "that", "the", "their","then", "there", "these",
     "they", "this", "to", "was", "will", "with"};
 
+static std::initializer_list<string> const wikipages_stopwords = {
+    "references", "external", "infobox", "reflist", "0title", "namespace",
+    "unknown", "stub"};
+
 static std::initializer_list<string> const english_stopwords = {
     "a", "about", "above", "above", "across", "after", "afterwards",
     "again", "against", "all", "almost", "alone", "along", "already",

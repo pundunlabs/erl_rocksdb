@@ -145,6 +145,8 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     if (argc != 3 || !enif_get_resource(env, argv[0], optionResource, (void **)&opts)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "options"));
     }
+    /*set will hold the iterators for this db*/
+    options = (rocksdb::DBOptions*) opts->object;
 
     /*get path*/
     if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) < 1){
@@ -160,14 +162,10 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     rdb->cfi_options = new rocksdb::ColumnFamilyOptions();
     rdb->stopwords = NULL;
 
-    if ( fix_cf_options(env, kvl, rdb) != 0 ) {
+    if ( fix_cf_options(env, kvl, rdb, options) != 0 ) {
 	enif_release_resource(rdb);
 	return enif_make_badarg(env);
     } else {
-
-	/*set will hold the iterators for this db*/
-
-	options = (rocksdb::DBOptions*) opts->object;
 
 	ERL_NIF_TERM db_term;
 

@@ -60,7 +60,8 @@ extern void open_db(rocksdb::DBOptions* options,
 		    rocksdb::Status* status);
 
 extern int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
-			  db_obj_resource* rdb);
+			  db_obj_resource* rdb,
+			  rocksdb::DBOptions* options);
 
 extern int init_readoptions(ErlNifEnv* env,
 			    const ERL_NIF_TERM* readoptions_array,

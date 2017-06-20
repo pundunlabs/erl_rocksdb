@@ -110,7 +110,8 @@ void delete_rit(it_obj_resource* rit) {
 }
 
 int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
-		   db_obj_resource* rdb) {
+		   db_obj_resource* rdb,
+		   rocksdb::DBOptions* options) {
     unsigned int kvl_len;
     char temp[MAXPATHLEN];
 
@@ -145,9 +146,26 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 		return -1;
 	    }
 
-	    rdb->cfd_options->memtable_factory.reset(new rocksdb::VectorRepFactory());
+	    //rdb->cfd_options->memtable_factory.reset(new rocksdb::VectorRepFactory());
+	    rdb->cfd_options->max_write_buffer_number=5;
+	    rdb->cfd_options->min_write_buffer_number_to_merge=2;
+	    //rdb->cfd_options->compression=rocksdb::CompressionType::kNoCompression;
+
+	    rdb->cfi_options->max_write_buffer_number=5;
+	    rdb->cfi_options->min_write_buffer_number_to_merge=2;
+	    //rdb->cfi_options->compression=rocksdb::CompressionType::kNoCompression;
+
+	    options->max_background_flushes=8;
+	    options->env->SetBackgroundThreads(8, rocksdb::Env::Priority::LOW);
+	    options->env->SetBackgroundThreads(8, rocksdb::Env::Priority::HIGH);
+	    options->max_background_compactions = 8;
+	    options->max_subcompactions = 4;
+	    //options->level0_stop_writes_trigger=36
+	    //options->level0_slowdown_writes_trigger=20
+
 	    if ( !rdb->stopwords ) {
 		rdb->stopwords = new std::unordered_set<std::string> (english_stopwords);
+		rdb->stopwords->insert(wikipages_stopwords);
 	    }
 	}
 	if(strcmp(temp, "stopwords") == 0) {

@@ -54,7 +54,8 @@ namespace rocksdb {
 	    char* buf = (char*) malloc (sizeof(char)*(buf_len));
 	    memcpy(buf, chars, 4);
 	    memcpy(buf+4, chars+5, buf_len-4);
-	    merge_out->existing_operand = Slice(buf, buf_len);
+	    merge_out->new_value.append(buf, buf_len);
+	    free(buf);
 	    return true;
 	}
 
