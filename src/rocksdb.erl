@@ -7,7 +7,7 @@
          delete/3,
          write/4,
 	 index_merge/4,
-	 term_index/4,
+	 term_index/5,
 	 add_index_ttl/2,
 	 remove_index_ttl/2]).
 
@@ -160,10 +160,13 @@ index_merge(_db, _writeoptions, _Key, _Value)->
 %% Operation performed using provided WriteOptions NIF Resource.
 %% @end
 %%--------------------------------------------------------------------
--spec term_index(DB :: db(), WriteOptions :: writeoptions(),
-	  Term :: key(), Key :: key()) ->
+-spec term_index(DB :: db(),
+		 WriteOptions :: writeoptions(),
+		 TidCid :: binary(),
+		 Terms :: [unicode:charlist()],
+		 Key :: key()) ->
     ok | {error, Reason :: any()}.
-term_index(_db, _writeoptions, _Term, _Key) ->
+term_index(_db, _writeoptions, _TidCid, _Terms, _Key) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------

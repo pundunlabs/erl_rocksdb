@@ -9,6 +9,14 @@
 #include "utilities/ttl/db_ttl_impl.h"
 
 namespace rocksdb {
+    class PostingComp
+    {
+	public:
+	    bool operator()(const std::string& a, const std::string& b) {
+		return a.compare(0, a.size() - 4, b, 0, b.size() - 4) < 0;
+	    }
+    };
+
     class TermIndexMerger : public MergeOperator {
 	public:
 	    explicit TermIndexMerger();

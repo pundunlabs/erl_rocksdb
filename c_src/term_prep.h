@@ -1,56 +1,29 @@
 #include <string>
-#include <algorithm>
-#include <iostream>
 #include "rocksdb/slice.h"
-#include "rocksdb/comparator.h"
 
-struct TermComparator {
-    explicit TermComparator(const rocksdb::Comparator* c = rocksdb::BytewiseComparator())
-	: cmp(c) {}
-
-    bool operator()(const rocksdb::Slice& a,
-		    const rocksdb::Slice& b) const {
-	return cmp->Compare(a, b) < 0;
-    }
-
-    const rocksdb::Comparator* cmp;
+struct Term {
+  const char* data;
+  size_t size;
+  int32_t freq;
+  int32_t position;
 };
 
 class TermPrep {
     public:
-	TermPrep(const rocksdb::Slice* t,
-		 const rocksdb::Slice* k,
-		 std::unordered_set<std::string>* stopwords) {
-	    const char* c = t->data();
-	    auto terms_len = t->size() - 4;
-	    const rocksdb::Slice add = rocksdb::Slice(c+4, terms_len);
-	    auto normalized = Normalize(&add);
-	    // Populate a vector of incoming terms
-	    std::string delim = " \t\n\v\f\r";
-	    auto head = normalized.find_first_not_of(delim, 0);
-	    auto tail = normalized.find_first_of(delim, head);
-	    terms_str_.reserve(terms_len);
-	    while ( std::string::npos != head ) {
-		size_t substr_len = ((std::string::npos == tail) ? terms_len - head : tail - head);
-		std::string term = normalized.substr(head, substr_len);
-		if( stopwords->count( term ) == 0 ) {
-		    size_t term_len = substr_len + 4;
-		    char* t = (char *) malloc( sizeof(char) * ( term_len ) );
-		    memcpy(t, c, 4);
-		    normalized.copy(t+4, substr_len, head);
-		    auto ret = terms_.emplace(rocksdb::Slice(t, term_len));
-		    if ( ret.second ) {
-			terms_str_.append(term.append(" "));
-		    } else {
-			free (t);
-		    }
-		}
-		head = normalized.find_first_not_of(delim, tail);
-		tail = normalized.find_first_of(delim, head);
+	TermPrep(const char* tidcid,
+		 const std::vector<Term> t,
+		 const rocksdb::Slice* k) {
+	    for (auto it = t.begin(); it != t.end(); ++it){
+		size_t term_len = it->size + 4;
+		char* t = (char *) malloc( sizeof(char) * ( term_len ) );
+		memcpy(t, tidcid, 4);
+		memcpy(t+4, it->data, it->size);
+		terms_.push_back(rocksdb::Slice(t, term_len));
+		terms_str_.append( it->data, it->size ).append(" ");
 	    }
 	    auto i_k_size = k->size() - 5;
 	    index_key_ = (char *) malloc( sizeof(char) * ( i_k_size ) );
-	    memcpy(index_key_, c, 4);
+	    memcpy(index_key_, tidcid, 4);
 	    memcpy(index_key_+4, k->data()+5, i_k_size-4);
 	    op_ = *(k->data()+4);
 	};
@@ -75,7 +48,7 @@ class TermPrep {
 	    return str;
 	}
 
-	std::set<rocksdb::Slice, TermComparator> terms_;
+	std::vector<rocksdb::Slice> terms_;
 	char* index_key_;
 	std::string terms_str_;
 	char op_;

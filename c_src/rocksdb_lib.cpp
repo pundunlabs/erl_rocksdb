@@ -1,12 +1,6 @@
-#include <iostream>
 #include "rocksdb_nif.h"
 #include "index_merger.h"
 #include "index_filter.h"
-#include "term_prep.h"
-#include "stopwords.h"
-//#include "util/murmurhash.h"
-//#include "util/stderr_logger.h"
-//#include <iostream>
 
 namespace {
     /* atoms */
@@ -70,10 +64,6 @@ void delete_db(db_obj_resource* rdb) {
     }
 
     delete rdb->link_set;
-
-    if( rdb->stopwords ) {
-	delete rdb->stopwords;
-    }
 
     if(rdb->type == DB_WITH_TTL) {
 	rocksdb::DBWithTTL *db;
@@ -162,23 +152,6 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    options->max_subcompactions = 4;
 	    //options->level0_stop_writes_trigger=36
 	    //options->level0_slowdown_writes_trigger=20
-
-	    if ( !rdb->stopwords ) {
-		rdb->stopwords = new std::unordered_set<std::string> (english_stopwords);
-		rdb->stopwords->insert(wikipages_stopwords);
-	    }
-	}
-	if(strcmp(temp, "stopwords") == 0) {
-	    if(enif_get_string(env, tuple[1], temp, sizeof(temp), ERL_NIF_LATIN1) < 1) {
-		return -1;
-	    }
-	    if(strcmp(temp, "empty") == 0) {
-		rdb->stopwords = new std::unordered_set<std::string> (empty_stopwords);
-	    } else if(strcmp(temp, "english") == 0) {
-		rdb->stopwords = new std::unordered_set<std::string> (english_stopwords);
-	    } else if(strcmp(temp, "lucene") == 0) {
-		rdb->stopwords = new std::unordered_set<std::string> (lucene_stopwords);
-	    }
 	}
 	if(strcmp(temp, "comparator") == 0) {
 	    if(enif_get_string(env, tuple[1], temp, sizeof(temp), ERL_NIF_LATIN1) < 1) {
@@ -405,9 +378,10 @@ rocksdb::Status IndexMerge(db_obj_resource* rdb,
 
 rocksdb::Status TermIndex(db_obj_resource* rdb,
 			  rocksdb::WriteOptions* writeoptions,
-			  rocksdb::Slice* term,
+			  const char* tidcid,
+			  std::vector<Term> terms,
 			  rocksdb::Slice* key) {
-    TermPrep tp = TermPrep(term, key, rdb->stopwords);
+    TermPrep tp = TermPrep(tidcid, terms, key);
     rocksdb::Status status;
     rocksdb::WriteBatch batch;
     //Merges for reverse indexes

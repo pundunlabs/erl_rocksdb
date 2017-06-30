@@ -66,7 +66,7 @@ namespace rocksdb {
 	    numBytes += it->size()-1;
 	}
 
-	std::set< std::string > postings;
+	std::set< std::string, rocksdb::PostingComp > postings;
 
 	// Parse and emplace portions of the *existing_value if one exists.
 	if (merge_in.existing_value) {
@@ -90,7 +90,7 @@ namespace rocksdb {
 
 	for (auto it = merge_in.operand_list.begin();
 		it != merge_in.operand_list.end(); ++it) {
-	    //If operand is expired
+	    //If operand is not expired
 	    if ( !IsStale(*it, ttl->second) ) {
 		const char* chars = it->data();
 		char  op = chars[4];

@@ -3,6 +3,7 @@
 #define ROCKSDB_NIF_H
 
 #include <mutex>          // std::mutex
+#include <vector>  //std::vector
 #include <unordered_set>  //std::unordered_set
 
 #include "rocksdb/db.h"
@@ -14,6 +15,7 @@
 #include "rocksdb/utilities/checkpoint.h"
 
 #include "term_index_merger.h"
+#include "term_prep.h"
 #include "erl_nif.h"
 
 #define MAXPATHLEN  255
@@ -38,7 +40,6 @@ typedef struct _db_obj_resource {
   rocksdb::ColumnFamilyOptions* cfd_options;
   rocksdb::ColumnFamilyOptions* cfi_options;
   vector<rocksdb::ColumnFamilyHandle*>* handles;
-  unordered_set<string>* stopwords;
 } db_obj_resource;
 
 typedef struct _it_obj_resource {
@@ -98,7 +99,8 @@ extern rocksdb::Status IndexMerge(db_obj_resource* rdb,
 
 extern rocksdb::Status TermIndex(db_obj_resource* rdb,
 				 rocksdb::WriteOptions* writeoptions,
-				 rocksdb::Slice* term,
+				 const char* tidcid,
+				 std::vector<Term> terms,
 				 rocksdb::Slice* key);
 
 extern void GetApproximateSizes(db_obj_resource* rdb,

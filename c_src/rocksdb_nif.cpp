@@ -9,9 +9,6 @@
 #include "rocksdb_nif.h"
 #include <string>
 
-#include <vector>
-#include <unordered_map>  //std::unordered_map
-
 namespace  { /* anonymous namespace starts */
 
 ErlNifResourceFlags resource_flags = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
@@ -160,7 +157,6 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     rdb->mtx = new mutex;
     rdb->cfd_options = new rocksdb::ColumnFamilyOptions();
     rdb->cfi_options = new rocksdb::ColumnFamilyOptions();
-    rdb->stopwords = NULL;
 
     if ( fix_cf_options(env, kvl, rdb, options) != 0 ) {
 	enif_release_resource(rdb);
@@ -420,8 +416,9 @@ ERL_NIF_TERM write_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 ERL_NIF_TERM term_index_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     db_obj_resource *rdb;
     /* get db_ptr resource */
-    if (argc != 4 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
-	return enif_make_badarg(env);
+    if (argc != 5 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "1"));
+	//return enif_make_badarg(env);
     }
 
     opt_obj_resource* wopts;
@@ -432,22 +429,62 @@ ERL_NIF_TERM term_index_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
     rocksdb::WriteOptions* writeoptions = (rocksdb::WriteOptions *) wopts->object;
 
-    ErlNifBinary binterm;
+    ErlNifBinary tidcidterm;
     /* get term resource */
-    if (!enif_inspect_binary(env, argv[2], &binterm)) {
-	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "term"));
+    if (!enif_inspect_binary(env, argv[2], &tidcidterm)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "tid_cid"));
+    }
+
+    /* get termresource */
+    ERL_NIF_TERM terms_list = argv[3];
+    ErlNifBinary binterm;
+
+    ERL_NIF_TERM head, tail;
+    const ERL_NIF_TERM* tuple;
+    int arity, freq, position;
+    std::vector <Term> terms;
+    while(enif_get_list_cell(env, terms_list, &head, &tail)){
+	if(enif_inspect_binary(env, head, &binterm)) {
+	    Term t;
+	    t.data = (const char*) binterm.data;
+	    t.size = (size_t) binterm.size;
+	    terms.push_back( t );
+	} else if(enif_get_tuple(env, head, &arity, &tuple)) {
+	    if(arity == 2) {
+		if( enif_inspect_binary(env, tuple[0], &binterm) &&
+		    enif_get_int(env, tuple[1], &freq) ) {
+		    Term t;
+		    t.data = (const char*) binterm.data;
+		    t.size = (size_t) binterm.size;
+		    t.freq = (int32_t) freq;
+		    terms.push_back( t );
+
+		} else { return enif_make_badarg(env); }
+	    } else if(arity == 3) {
+		if( enif_inspect_binary(env, tuple[0], &binterm) &&
+		    enif_get_int(env, tuple[1], &freq) &&
+		    enif_get_int(env, tuple[2], &position) ) {
+		    Term t;
+		    t.data = (const char*) binterm.data;
+		    t.size = (size_t) binterm.size;
+		    t.freq = (int32_t) freq;
+		    t.position = (int32_t) position;
+		    terms.push_back( t );
+		} else { return enif_make_badarg(env); }
+	    } else { return enif_make_badarg(env); }
+	} else { return enif_make_badarg(env); }
+	terms_list = tail;
     }
 
     ErlNifBinary binkey;
     /*get key resource*/
-    if (!enif_inspect_binary(env, argv[3], &binkey)) {
+    if (!enif_inspect_binary(env, argv[4], &binkey)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "key"));
     }
 
-    rocksdb::Slice term((const char*)binterm.data, (size_t) binterm.size);
+    const char* tidcid = (const char*)tidcidterm.data;
     rocksdb::Slice key((const char*)binkey.data, (size_t) binkey.size);
-
-    rocksdb::Status status = TermIndex(rdb, writeoptions, &term, &key);
+    rocksdb::Status status = TermIndex(rdb, writeoptions, tidcid, terms, &key);
 
     if (status.ok()) {
 	return atom_ok;
@@ -1424,7 +1461,7 @@ ErlNifFunc nif_funcs[] = {
     {"write", 4, write_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"index_merge", 4, index_merge_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
-    {"term_index", 4, term_index_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"term_index", 5, term_index_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"add_index_ttl", 2, add_index_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"remove_index_ttl", 2, remove_index_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
