@@ -430,12 +430,12 @@ ERL_NIF_TERM term_index_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     rocksdb::WriteOptions* writeoptions = (rocksdb::WriteOptions *) wopts->object;
 
     ErlNifBinary tidcidterm;
-    /* get term resource */
+    /* get tid and cid resource */
     if (!enif_inspect_binary(env, argv[2], &tidcidterm)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "tid_cid"));
     }
 
-    /* get termresource */
+    /* get term resource */
     ERL_NIF_TERM terms_list = argv[3];
     ErlNifBinary binterm;
 

@@ -54,7 +54,7 @@ class TermPrep {
 	char op_;
 	const char ADD = 43;
 
-    private:	
+    private:
 	static int IsNotAlfaNumericOrSpace (int c) {
 	    return !(std::isalnum(c) || std::isspace(c));
 	}
