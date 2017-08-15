@@ -386,7 +386,7 @@ rocksdb::Status TermIndex(db_obj_resource* rdb,
     rocksdb::WriteBatch batch;
     //Merges for reverse indexes
     for (auto it = tp.terms_.begin(); it != tp.terms_.end(); ++it){
-	batch.Merge(rdb->handles->at(0), *it, *key);
+	batch.Merge(rdb->handles->at(0), it->first, it->second);
     }
     //Merge for keeping index history
     if( tp.op_ == tp.ADD ) {

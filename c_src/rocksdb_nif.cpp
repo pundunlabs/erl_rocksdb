@@ -449,29 +449,6 @@ ERL_NIF_TERM term_index_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 	    t.data = (const char*) binterm.data;
 	    t.size = (size_t) binterm.size;
 	    terms.push_back( t );
-	} else if(enif_get_tuple(env, head, &arity, &tuple)) {
-	    if(arity == 2) {
-		if( enif_inspect_binary(env, tuple[0], &binterm) &&
-		    enif_get_int(env, tuple[1], &freq) ) {
-		    Term t;
-		    t.data = (const char*) binterm.data;
-		    t.size = (size_t) binterm.size;
-		    t.freq = (int32_t) freq;
-		    terms.push_back( t );
-
-		} else { return enif_make_badarg(env); }
-	    } else if(arity == 3) {
-		if( enif_inspect_binary(env, tuple[0], &binterm) &&
-		    enif_get_int(env, tuple[1], &freq) &&
-		    enif_get_int(env, tuple[2], &position) ) {
-		    Term t;
-		    t.data = (const char*) binterm.data;
-		    t.size = (size_t) binterm.size;
-		    t.freq = (int32_t) freq;
-		    t.position = (int32_t) position;
-		    terms.push_back( t );
-		} else { return enif_make_badarg(env); }
-	    } else { return enif_make_badarg(env); }
 	} else { return enif_make_badarg(env); }
 	terms_list = tail;
     }

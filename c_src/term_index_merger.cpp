@@ -74,10 +74,12 @@ namespace rocksdb {
 	    auto size = merge_in.existing_value->size();
 	    uint32_t i = 0;
 	    //Remove already compacted but expired postings
-	    while( i < size) {
+	    while( i < size ) {
 		auto pos = existing + i;
 		auto len = DecodeUnsigned(pos, 4);
-		auto portion = len + 3;
+		auto portion = len + 11;//+4 bytes of encoded len
+					//-1 byte of removed Op char
+					//+8 bytes of encoded Freq and Pos
 		if ( !IsStale(Slice(pos + portion), ttl->second) ) {
 		    postings.emplace(std::string(pos, portion));
 		}
@@ -108,6 +110,7 @@ namespace rocksdb {
 		}
 	    }
 	}
+
 	for (auto it = postings.begin(); it != postings.end(); ++it) {
 	    merge_out->new_value.append(*it);
 	}
@@ -154,7 +157,7 @@ namespace rocksdb {
 	    return false;
 	}
 	int32_t timestamp_value =
-	    DecodeUnsigned(s.data() + s.size() - 4, 4);
+	    DecodeUnsigned(s.data() + s.size() - 12, 4);
 	return (timestamp_value + ttl) < curtime;
 
     }

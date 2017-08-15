@@ -13,7 +13,11 @@ namespace rocksdb {
     {
 	public:
 	    bool operator()(const std::string& a, const std::string& b) {
-		return a.compare(0, a.size() - 4, b, 0, b.size() - 4) < 0;
+		auto lex_comp = a.compare(0, a.size()-12, b, 0, b.size()-12);
+		if( lex_comp == 0 ) { return false; }
+		auto stat_comp = a.compare(a.size()-8, 8, b, b.size()-8, 8);
+		if( stat_comp == 0 ) {return lex_comp < 0; }
+		else { return stat_comp > 0;}
 	    }
     };
 
