@@ -15,9 +15,13 @@ namespace rocksdb {
 	    bool operator()(const std::string& a, const std::string& b) {
 		auto lex_comp = a.compare(0, a.size()-12, b, 0, b.size()-12);
 		if( lex_comp == 0 ) { return false; }
-		auto stat_comp = a.compare(a.size()-8, 8, b, b.size()-8, 8);
-		if( stat_comp == 0 ) {return lex_comp < 0; }
-		else { return stat_comp > 0;}
+		auto freq_comp = a.compare(a.size()-8, 4, b, b.size()-8, 4);
+		auto pos_comp = a.compare(a.size()-4, 4, b, b.size()-4, 4);
+		if( freq_comp == 0 ) {
+		    if(pos_comp == 0) { return lex_comp < 0; }
+		    else { pos_comp < 0; }
+		}
+		else { return freq_comp > 0; }
 	    }
     };
 
