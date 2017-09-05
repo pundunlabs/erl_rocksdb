@@ -19,7 +19,7 @@ namespace rocksdb {
 		auto pos_comp = a.compare(a.size()-4, 4, b, b.size()-4, 4);
 		if( freq_comp == 0 ) {
 		    if(pos_comp == 0) { return lex_comp < 0; }
-		    else { pos_comp < 0; }
+		    else { return pos_comp < 0; }
 		}
 		else { return freq_comp > 0; }
 	    }
