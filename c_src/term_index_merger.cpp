@@ -51,11 +51,7 @@ namespace rocksdb {
 	    }
 	    //buf_len is size - 1 since we remove op char.
 	    size_t buf_len = back.size()-1;
-	    char* buf = (char*) malloc (sizeof(char)*(buf_len));
-	    memcpy(buf, chars, 4);
-	    memcpy(buf+4, chars+5, buf_len-4);
-	    merge_out->new_value.append(buf, buf_len);
-	    free(buf);
+	    merge_out->new_value.append(chars, buf_len);
 	    return true;
 	}
 
