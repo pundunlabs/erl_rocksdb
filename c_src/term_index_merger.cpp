@@ -51,7 +51,9 @@ namespace rocksdb {
 	    }
 	    //buf_len is size - 1 since we remove op char.
 	    size_t buf_len = back.size()-1;
-	    merge_out->new_value.append(chars, buf_len);
+	    merge_out->new_value.append(chars, 4);
+	    //append rest after op char
+	    merge_out->new_value.append(chars+5, buf_len-4);
 	    return true;
 	}
 
@@ -94,9 +96,9 @@ namespace rocksdb {
 		char  op = chars[4];
 		//buf_len is size - 1 since we remove op char.
 		size_t buf_len = it->size() - 1;
-
 		std::string str;
 		str.append(chars, 4);
+		//append rest after op char
 		str.append(chars+5, buf_len-4);
 
 		if (op == 43) {
