@@ -1,6 +1,8 @@
 #include "rocksdb_nif.h"
 #include "index_merger.h"
 #include "index_filter.h"
+#include "rocksdb/convenience.h"
+#include <iostream>
 
 namespace {
     /* atoms */
@@ -33,6 +35,8 @@ namespace {
 	return -1;
     }
 }
+
+int parse_kvl_to_map(ErlNifEnv* env, ERL_NIF_TERM kvl, unordered_map<string,string>& map);
 
 void init_lib_atoms(ErlNifEnv* env) {
     atom_error = enif_make_atom(env, "error");
@@ -114,18 +118,22 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
     }
 
     while(enif_get_list_cell(env, kvl, &head, &tail)) {
+
 	if(!enif_get_tuple(env, head, &arity, &tuple)) {
 	    return -1;
 	}
+
 	if(arity != 2 || enif_get_string(env, tuple[0], temp, sizeof(temp), ERL_NIF_LATIN1) < 1 ) {
 	    return -1;
 	}
+
 	if(strcmp(temp, "pid") == 0) {
 	    if(!enif_get_local_pid(env, tuple[1], &rdb->pid)) {
 		return -1;
 	    }
 	    rdb->cfi_options->merge_operator.reset(new rocksdb::IndexMerger(&rdb->pid));
 	}
+
 	if(strcmp(temp, "term_index") == 0) {
 	    ERL_NIF_TERM add_list = tuple[1];
 	    vector< pair<int,int> > list;
@@ -153,6 +161,7 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    //options->level0_stop_writes_trigger=36
 	    //options->level0_slowdown_writes_trigger=20
 	}
+
 	if(strcmp(temp, "comparator") == 0) {
 	    if(enif_get_string(env, tuple[1], temp, sizeof(temp), ERL_NIF_LATIN1) < 1) {
 		return -1;
@@ -162,6 +171,7 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 		rdb->cfd_options->comparator = rocksdb::ReverseBytewiseComparator();
 	    }
 	}
+
 	if(strcmp(temp, "ttl") == 0) {
 	    int int_ttl;
 	    if(!enif_get_int(env, tuple[1], &int_ttl)) {
@@ -170,7 +180,26 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    rdb->ttl = (int32_t)int_ttl;
 	    rdb->type = DB_WITH_TTL;
 	}
-        kvl = tail;
+
+	if(strcmp(temp, "cf_raw_opts") == 0) {
+	    unordered_map<string,string> opts_map;
+	    parse_kvl_to_map(env, tuple[1], opts_map);
+	    rocksdb::Status status;
+
+	    rocksdb::ColumnFamilyOptions tmpopts = *rdb->cfd_options;
+
+	    status = rocksdb::GetColumnFamilyOptionsFromMap(*rdb->cfd_options, // base
+						   opts_map,
+						   rdb->cfd_options, // update
+						   true);
+
+	    rocksdb::GetColumnFamilyOptionsFromMap(*rdb->cfi_options, // base
+						   opts_map,
+						   rdb->cfi_options, // update
+						   true);
+	}
+
+	kvl = tail;
     }
 
     return 0;
@@ -211,7 +240,6 @@ int init_readoptions(ErlNifEnv* env,
     else{
 	readoptions->fill_cache = temp;
     }
-    return 0;
 
     //Set tailing
     temp = get_bool(env, readoptions_array[6]);
@@ -221,7 +249,6 @@ int init_readoptions(ErlNifEnv* env,
     else{
 	readoptions->tailing = temp;
     }
-    return 0;
 
     //Set managed
     temp = get_bool(env, readoptions_array[7]);
@@ -592,7 +619,7 @@ int parse_int_pairs(ErlNifEnv* env,
     if (!enif_get_list_length(env, add_list, &list_size)) {
 	return -1;
     }
-    ;
+
     ERL_NIF_TERM head, tail;
     int arity;
     const ERL_NIF_TERM* tuple;
@@ -613,5 +640,38 @@ int parse_int_pairs(ErlNifEnv* env,
 	list->push_back( std::make_pair(tid, ttl) );
 	add_list = tail;
     }
+    return 1;
+}
+
+int parse_kvl_to_map(ErlNifEnv* env, ERL_NIF_TERM kvl, unordered_map<string,string>& map) {
+    unsigned int kvl_len;
+    char key[1024];
+    char value[1024];
+
+    ERL_NIF_TERM head, tail;
+    const ERL_NIF_TERM* tuple;
+    int arity;
+
+    if(!enif_get_list_length(env, kvl, &kvl_len)) {
+	return 0;
+    }
+
+    map.reserve(kvl_len);
+
+    while(enif_get_list_cell(env, kvl, &head, &tail)) {
+	if(!enif_get_tuple(env, head, &arity, &tuple)) {
+	    return 0;
+	}
+	if(arity != 2 || !enif_get_string(env, tuple[0], key, sizeof(key), ERL_NIF_LATIN1)) {
+	    return 0;
+	}
+	if(!enif_get_string(env, tuple[1], value, sizeof(value), ERL_NIF_LATIN1)) {
+	    return 0;
+	}
+	pair<string, string> p ((const char*)key, (const char*)value);
+	map.insert( p );
+        kvl = tail;
+    }
+
     return 1;
 }
