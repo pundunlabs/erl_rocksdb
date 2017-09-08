@@ -137,6 +137,7 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     rocksdb::DBOptions* options;
     opt_obj_resource* opts;
     ERL_NIF_TERM kvl = argv[2];
+    rocksdb::Status status;
 
     /*get options resource*/
     if (argc != 3 || !enif_get_resource(env, argv[0], optionResource, (void **)&opts)) {
@@ -152,22 +153,28 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     db_obj_resource* rdb = (db_obj_resource *) enif_alloc_resource(dbResource, sizeof(db_obj_resource));
 
     rdb->type = DB_DEFAULT;
+    rdb->allocated = 1;
+    rdb->db_open = 0;
     rdb->handles = new vector<rocksdb::ColumnFamilyHandle*>;
     rdb->link_set = new unordered_set<void*>;
     rdb->mtx = new mutex;
     rdb->cfd_options = new rocksdb::ColumnFamilyOptions();
     rdb->cfi_options = new rocksdb::ColumnFamilyOptions();
 
-    if ( fix_cf_options(env, kvl, rdb, options) != 0 ) {
+    if ( fix_cf_options(env, kvl, rdb, options, status) != 0 ) {
 	enif_release_resource(rdb);
+	if(!status.ok()) {
+	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
+	    return status_tuple;
+	}
 	return enif_make_badarg(env);
     } else {
 
 	ERL_NIF_TERM db_term;
 
 
-	rocksdb::Status status;
 	open_db(options, path, rdb, &status);
+	rdb->db_open = 1;
 
 	if(status.ok()) {
 	    db_term = enif_make_resource(env, rdb);

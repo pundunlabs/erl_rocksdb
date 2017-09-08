@@ -37,6 +37,7 @@ typedef struct _db_obj_resource {
   ErlNifPid pid;
   int32_t ttl;
   char type;
+  char db_open;
   rocksdb::ColumnFamilyOptions* cfd_options;
   rocksdb::ColumnFamilyOptions* cfi_options;
   vector<rocksdb::ColumnFamilyHandle*>* handles;
@@ -62,7 +63,8 @@ extern void open_db(rocksdb::DBOptions* options,
 
 extern int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 			  db_obj_resource* rdb,
-			  rocksdb::DBOptions* options);
+			  rocksdb::DBOptions* options,
+			  rocksdb::Status &status);
 
 extern int init_readoptions(ErlNifEnv* env,
 			    const ERL_NIF_TERM* readoptions_array,

@@ -69,12 +69,12 @@ void delete_db(db_obj_resource* rdb) {
 
     delete rdb->link_set;
 
-    if(rdb->type == DB_WITH_TTL) {
+    if(rdb->type == DB_WITH_TTL && rdb->db_open) {
 	rocksdb::DBWithTTL *db;
 	db = (rocksdb::DBWithTTL*) rdb->object;
 	delete db;
     }
-    else {
+    else if(rdb->db_open) {
 	rocksdb::DB *db;
 	db = (rocksdb::DB*) rdb->object;
 	delete db;
@@ -105,7 +105,8 @@ void delete_rit(it_obj_resource* rit) {
 
 int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 		   db_obj_resource* rdb,
-		   rocksdb::DBOptions* options) {
+		   rocksdb::DBOptions* options,
+		   rocksdb::Status& status) {
     unsigned int kvl_len;
     char temp[MAXPATHLEN];
 
@@ -184,19 +185,24 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	if(strcmp(temp, "cf_raw_opts") == 0) {
 	    unordered_map<string,string> opts_map;
 	    parse_kvl_to_map(env, tuple[1], opts_map);
-	    rocksdb::Status status;
-
-	    rocksdb::ColumnFamilyOptions tmpopts = *rdb->cfd_options;
 
 	    status = rocksdb::GetColumnFamilyOptionsFromMap(*rdb->cfd_options, // base
 						   opts_map,
 						   rdb->cfd_options, // update
 						   true);
+	    if(!status.ok()) {
+		return -1;
+	    }
 
-	    rocksdb::GetColumnFamilyOptionsFromMap(*rdb->cfi_options, // base
+	    status = rocksdb::GetColumnFamilyOptionsFromMap(*rdb->cfi_options, // base
 						   opts_map,
 						   rdb->cfi_options, // update
 						   true);
+
+	    if(!status.ok()) {
+		return -1;
+	    }
+
 	}
 
 	kvl = tail;
