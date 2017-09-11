@@ -8,4 +8,10 @@ if [ ! -d ${ROCKSDB_DIR} ]; then
 fi
 export INSTALL_PATH="."
 export CXXFLAGS=-fPIC
-(cd ${ROCKSDB_DIR} && make -j 4 static_lib)
+(cd ${ROCKSDB_DIR} && \
+    make libzstd.a && \
+    make libsnappy.a && \
+    make libbz2.a && \
+    make libz.a && \
+    make liblz4.a && \
+    make -j 4 static_lib)
