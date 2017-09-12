@@ -447,8 +447,6 @@ ERL_NIF_TERM term_index_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     ErlNifBinary binterm;
 
     ERL_NIF_TERM head, tail;
-    const ERL_NIF_TERM* tuple;
-    int arity, freq, position;
     std::vector <Term> terms;
     while(enif_get_list_cell(env, terms_list, &head, &tail)){
 	if(enif_inspect_binary(env, head, &binterm)) {
@@ -519,6 +517,58 @@ ERL_NIF_TERM remove_index_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM a
     if (op) {
 	op->RemoveTtlMapping(tid);
     }
+    return atom_ok;
+}
+
+ERL_NIF_TERM remove_index_tid_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    db_obj_resource *rdb;
+    rocksdb::DB* db;
+    /* get db_ptr resource */
+    if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+    //Cast resource to rocksdb::DB*, we are sure it is not a ttl db.
+    db = static_cast<rocksdb::DB*>(rdb->object);
+    /* get tid resource */
+    ErlNifBinary tidterm;
+    if (!enif_inspect_binary(env, argv[1], &tidterm)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "tid"));
+    }
+    auto merge_operator = rdb->cfd_options->merge_operator;
+    auto op = std::static_pointer_cast<rocksdb::TermIndexMerger>(merge_operator);
+    const char* tid = (const char*)tidterm.data;
+    if (op) {
+	int tidInt = (int) op->DecodeUnsigned(tid, 2);
+	op->RemoveTtlMapping(tidInt);
+    }
+    //Define the range (begin, end) to be removed.
+    unsigned char bytes[2] = {0xff, 0xff}; //Largest possible cid to append.
+    std::string end_string = tid;
+    end_string.append((const char*)bytes, 2);
+    rocksdb::Slice begin(tid);
+    rocksdb::Slice end(end_string);
+    //First delete files in range to reclaim the space faster.
+    rocksdb::DeleteFilesInRange(db, rdb->handles->at(0), &begin, &end);
+    rocksdb::DeleteFilesInRange(db, rdb->handles->at(1), &begin, &end);
+    //Then delete remaining entries on other sst files one by one
+    /*Create rocksdb iterators*/
+    rocksdb::ReadOptions ro;
+    std::vector<rocksdb::Iterator*> iterators;
+    db->NewIterators(ro, *(rdb->handles), &iterators);
+    rocksdb::WriteOptions wo;
+    int cf = 0;
+    for (auto it : iterators) {
+	for (it->Seek(tid);
+	     it->Valid() && it->key().starts_with(tid);
+	     it->Next()) {
+	    db->Delete(wo, rdb->handles->at(cf), it->key());
+	}
+	cf++;
+    }
+    for (auto it : iterators) { delete it; }
+    //Last, compact the range to reclaim space.
+    db->CompactRange(rocksdb::CompactRangeOptions(), rdb->handles->at(0), &begin, &end);
+    db->CompactRange(rocksdb::CompactRangeOptions(), rdb->handles->at(1), &begin, &end);
     return atom_ok;
 }
 
@@ -1448,6 +1498,7 @@ ErlNifFunc nif_funcs[] = {
     {"term_index", 5, term_index_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"add_index_ttl", 2, add_index_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"remove_index_ttl", 2, remove_index_ttl_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"remove_index_tid", 2, remove_index_tid_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
     {"options", 1, options_nif},
     {"readoptions", 1, readoptions_nif},

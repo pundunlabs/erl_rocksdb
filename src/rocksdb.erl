@@ -9,7 +9,8 @@
 	 index_merge/4,
 	 term_index/5,
 	 add_index_ttl/2,
-	 remove_index_ttl/2]).
+	 remove_index_ttl/2,
+	 remove_index_tid/2]).
 
 -export([options/1,
 	 readoptions/1,
@@ -185,6 +186,16 @@ add_index_ttl(_db, _add_list) ->
 -spec remove_index_ttl(DB :: db(), Tid :: integer()) ->
     ok | {error, Reason :: any()}.
 remove_index_ttl(_db, _tid) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Remove index entries for table specied by tid.
+%% @end
+%%--------------------------------------------------------------------
+-spec remove_index_tid(DB :: db(),
+		       Tid :: binary()) ->
+    ok | {error, Reason :: any()}.
+remove_index_tid(_db, _tid) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %% Declaring structs and constructing objects

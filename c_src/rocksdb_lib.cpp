@@ -149,10 +149,14 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    rdb->cfd_options->max_write_buffer_number=5;
 	    rdb->cfd_options->min_write_buffer_number_to_merge=2;
 	    //rdb->cfd_options->compression=rocksdb::CompressionType::kNoCompression;
+	    // Enable some features supporting prefix extraction
+	    // 2 Bytes for encoded Tid. Used when deleting by tid.
+	    rdb->cfd_options->prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(2));
 
 	    rdb->cfi_options->max_write_buffer_number=5;
 	    rdb->cfi_options->min_write_buffer_number_to_merge=2;
 	    //rdb->cfi_options->compression=rocksdb::CompressionType::kNoCompression;
+	    rdb->cfi_options->prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(2));
 
 	    options->max_background_flushes=8;
 	    options->env->SetBackgroundThreads(8, rocksdb::Env::Priority::LOW);
