@@ -8,6 +8,19 @@ if [ ! -d ${ROCKSDB_DIR} ]; then
 fi
 export INSTALL_PATH="."
 export CXXFLAGS=-fPIC
+
+# building libraries under rocksdb checks sha256 checksum using openssl
+# set working opnessl first in path
+if [ -z "$(echo "test text" | openssl sha256 2>/dev/null)" ]; then
+    for p in ${PATH//:/ }; do
+	if [ -e $p/openssl ]; then
+	    if [ ! -z "$(echo "test text" | $p/openssl sha256 2>/dev/null)" ]; then
+		export PATH=$p:$PATH;
+	    fi
+	fi
+    done
+fi
+
 (cd ${ROCKSDB_DIR} && \
     make -j 4 libzstd.a && \
     make -j 4 libsnappy.a && \
