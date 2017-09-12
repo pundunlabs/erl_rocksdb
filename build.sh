@@ -9,9 +9,9 @@ fi
 export INSTALL_PATH="."
 export CXXFLAGS=-fPIC
 (cd ${ROCKSDB_DIR} && \
-    make libzstd.a && \
-    make libsnappy.a && \
-    make libbz2.a && \
-    make libz.a && \
-    make liblz4.a && \
+    make -j 4 libzstd.a && \
+    make -j 4 libsnappy.a && \
+    make -j 4 libbz2.a && \
+    make -j 4 libz.a && \
+    make -j 4 liblz4.a && \
     make -j 4 static_lib)
