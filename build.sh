@@ -22,9 +22,4 @@ if [ -z "$(echo "test text" | openssl sha256 2>/dev/null)" ]; then
 fi
 
 (cd ${ROCKSDB_DIR} && \
-    make -j 4 libzstd.a && \
-    make -j 4 libsnappy.a && \
-    make -j 4 libbz2.a && \
-    make -j 4 libz.a && \
-    make -j 4 liblz4.a && \
-    make -j 4 static_lib)
+    make -j 4 libzstd.a libsnappy.a libbz2.a libz.a liblz4.a static_lib)
