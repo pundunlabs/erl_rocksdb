@@ -28,7 +28,7 @@ namespace rocksdb {
     class TermIndexMerger : public MergeOperator {
 	public:
 	    explicit TermIndexMerger();
-	    explicit TermIndexMerger( std::vector<std::pair<int,int>>* list );
+	    explicit TermIndexMerger( int32_t ttl );
 	    virtual ~TermIndexMerger();
 	    virtual bool FullMergeV2(const MergeOperationInput& merge_in,
 				     MergeOperationOutput* merge_out) const override;
@@ -40,18 +40,12 @@ namespace rocksdb {
 
 	    virtual const char* Name() const override;
 
-	    virtual void AddTtlMapping(int tid, int32_t ttl) const;
-
-	    virtual void RemoveTtlMapping(int tid) const;
-
-	    virtual uint32_t DecodeUnsigned(const char* ptr, int bytes) const;
-
-	    virtual bool IsStale(const Slice& s, int32_t ttl) const;
+	    virtual bool IsDelete(const char* chars, size_t len) const;
 
 	private:
 	    rocksdb::Env* env_;
-	    std::unordered_map<int, int32_t>* ttlmap_;
-	    std::vector<std::pair<int,int>>* list_;
+	    int32_t ttl_;
+	    unsigned char remove_[4] = {0xff, 0xff, 0xff, 0xff};
     };
 
 } // namespace rocksdb

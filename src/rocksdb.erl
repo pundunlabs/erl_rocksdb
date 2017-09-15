@@ -3,14 +3,10 @@
 -export([open_db/3,
 	 close_db/1,
          get/3,
-         put/4,
-         delete/3,
+         put/5,
+         delete/4,
          write/4,
-	 index_merge/4,
-	 term_index/5,
-	 add_index_ttl/2,
-	 remove_index_ttl/2,
-	 remove_index_tid/2]).
+	 index_get/3]).
 
 -export([options/1,
 	 readoptions/1,
@@ -118,9 +114,9 @@ get(_db, _readoptions, _Key)->
 %% @end
 %%--------------------------------------------------------------------
 -spec put(DB :: db(), WriteOptions :: writeoptions(),
-	  Key :: key(), Value :: value()) ->
+	  Key :: key(), Value :: value(), Terms :: term()) ->
     ok | {error, Reason :: any()}.
-put(_db, _writeoptions, _Key, _Value)->
+put(_db, _writeoptions, _Key, _Valuei, _Terms)->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
@@ -128,80 +124,41 @@ put(_db, _writeoptions, _Key, _Value)->
 %% Operation performed using provided WriteOptions NIF Resource.
 %% @end
 %%--------------------------------------------------------------------
--spec delete(DB :: db(), WriteOptions :: writeoptions(), Key :: key()) ->
+-spec delete(DB :: db(),
+	     WriteOptions :: writeoptions(),
+	     Key :: key(),
+	     Cids :: [binary()]) ->
     ok | {error, Reason :: any()}.
-delete(_db, _writeoptions, _Key)->
+delete(_db, _writeoptions, _Key, _Cids)->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Write a batch of keys to delete and key/value pairs to put provided by DeleteKeys and PutKeyValuePairs to rocksdb database referenced by NIF Resource DB.
+%% @doc Write a batch of keys to delete and key/value pairs to put,
+%%  provided by DeleteKeys and PutKeyValuePairs to rocksdb database
+%% that is referenced by NIF Resource DB.
 %% Operation performed using provided WriteOptions NIF Resource.
 %% @end
 %%--------------------------------------------------------------------
--spec write(DB :: db(), WriteOptions :: writeoptions(), DeleteKeys :: [key()], PutKeyValuePairs :: [{key(), value()}]) ->
+-spec write(DB :: db(), WriteOptions :: writeoptions(),
+	    DeleteKeys :: [key()],
+	    PutKeyValuePairs :: [{key(), value()}]) ->
     ok | {error, Reason :: any()}.
 write(_db, _writeoptions, _Delete_Ks, _Put_KVs)->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Put key/index_term pair provided to rocksdb database's index
-%% column family referenced by NIF Resource DB.
-%% Operation performed using provided WriteOptions NIF Resource.
+%% @doc Get the postings of the reverse index provided by Key from
+%% rocksdb database referenced by NIF Resource DB.
 %% @end
 %%--------------------------------------------------------------------
--spec index_merge(DB :: db(), WriteOptions :: writeoptions(),
-	  Key :: binary(), Value :: binary()) ->
-    ok | {error, Reason :: any()}.
-index_merge(_db, _writeoptions, _Key, _Value)->
+-spec index_get(DB :: db(), ReadOptions :: readoptions(), Key :: key()) ->
+    {ok, value()} | {error, Reason :: any()}.
+index_get(_db, _readoptions, _Key)->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Put key/index_term pair provided to rocksdb database's index
-%% column family referenced by NIF Resource DB.
-%% Operation performed using provided WriteOptions NIF Resource.
-%% @end
-%%--------------------------------------------------------------------
--spec term_index(DB :: db(),
-		 WriteOptions :: writeoptions(),
-		 TidCid :: binary(),
-		 Terms :: [unicode:charlist()],
-		 Key :: key()) ->
-    ok | {error, Reason :: any()}.
-term_index(_db, _writeoptions, _TidCid, _Terms, _Key) ->
-    erlang:nif_error(nif_library_not_loaded).
-
-%%--------------------------------------------------------------------
-%% @doc Report a new ttl for table id Tid to term indexer.
-%% @end
-%%--------------------------------------------------------------------
--spec add_index_ttl(DB :: db(), [{Tid :: integer(), Ttl :: integer()}]) ->
-    ok | {error, Reason :: any()}.
-add_index_ttl(_db, _add_list) ->
-    erlang:nif_error(nif_library_not_loaded).
-
-%%--------------------------------------------------------------------
-%% @doc Report removal of ttl for table id Tid to term indexer.
-%% @end
-%%--------------------------------------------------------------------
--spec remove_index_ttl(DB :: db(), Tid :: integer()) ->
-    ok | {error, Reason :: any()}.
-remove_index_ttl(_db, _tid) ->
-    erlang:nif_error(nif_library_not_loaded).
-
-%%--------------------------------------------------------------------
-%% @doc Remove index entries for table specied by tid.
-%% @end
-%%--------------------------------------------------------------------
--spec remove_index_tid(DB :: db(),
-		       Tid :: binary()) ->
-    ok | {error, Reason :: any()}.
-remove_index_tid(_db, _tid) ->
-    erlang:nif_error(nif_library_not_loaded).
-
-%% Declaring structs and constructing objects
-
-%%--------------------------------------------------------------------
-%% @doc Make and get a NIF resource constructed by the provided RocksdbOptions.
+%% @doc Make and get a NIF resource constructed by the provided
+%% RocksdbOptions.
 %% This resource can be used for first arity in open_db/2 function.
 %% @end
 %%--------------------------------------------------------------------
@@ -211,7 +168,8 @@ options(_rocksdb_options_record) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Make and get a NIF resource constructed by the provided RocksdbReadOptions.
+%% @doc Make and get a NIF resource constructed by the provided
+%% RocksdbReadOptions.
 %% This resource can be used for second arity in get/3 function.
 %% @end
 %%--------------------------------------------------------------------
@@ -221,8 +179,10 @@ readoptions(_rocksdb_readoptions_record) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Make and get a NIF resource constructed by the provided RocksdbWriteOptions.
-%% This resource can be used for second arity in put/4. delete/3, write/4 functions.
+%% @doc Make and get a NIF resource constructed by the provided
+%% RocksdbWriteOptions.
+%% This resource can be used for second arity in put/4. delete/3,
+%% write/4 functions.
 %% @end
 %%--------------------------------------------------------------------
 -spec writeoptions(RocksdbWriteOptions :: #rocksdb_writeoptions{}) ->
@@ -231,7 +191,8 @@ writeoptions(_rocksdb_writeoptions_record) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Destroy the contents of the specified rocksdb database with provided Path and Options.
+%% @doc Destroy the contents of the specified rocksdb database with
+%% provided Path and Options.
 %% Returns ok or {error, Reason}.
 %% @end
 %%--------------------------------------------------------------------
@@ -241,7 +202,8 @@ destroy_db(_Path, _Options)->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Try to repair the specified rocksdb database with provided Path and Options.
+%% @doc Try to repair the specified rocksdb database with provided
+%% Path and Options.
 %% Returns ok or {error, Reason}.
 %% @end
 %%--------------------------------------------------------------------
@@ -251,9 +213,10 @@ repair_db(_Name, _Options)->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Approximate the file system space used by keys in given Range for a database.
-%% Returned size is compressed size and might be smaller than user data.
-%% The result might not include the size of recently written data.
+%% @doc Approximate the file system space used by keys in given Range
+%% for a database. Returned size is compressed size and might be
+%% smaller than user data. The result might not include the size of
+%% recently written data.
 %% @end
 %%--------------------------------------------------------------------
 -spec approximate_sizes(DB :: db(), Ranges :: [range()]) ->
@@ -273,11 +236,12 @@ approximate_size(_DB, _ReadOptions) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
-%% @doc Read a set of Key/Value Pairs in between key range that is sopecified by Range.
-%% Limit the number of pairs to be read by Limit.
+%% @doc Read a set of Key/Value Pairs in between key range that is
+%% specified by Range. Limit the number of pairs to be read by Limit.
 %% @end
 %%--------------------------------------------------------------------
--spec read_range(DB :: db(), Options :: options(), ReadOptions :: readoptions(),
+-spec read_range(DB :: db(), Options :: options(),
+		 ReadOptions :: readoptions(),
                  Range :: range(), Limit :: pos_integer()) ->
     {ok, [{key(), value()}], Cont :: complete | key()} |
     {error, Reason :: any()}.
@@ -435,7 +399,8 @@ create_checkpoint(_db, _path) ->
 %%NIF test to allocate resources
 
 %%--------------------------------------------------------------------
-%% @doc This function is used by developers for simple functionality tests and will be removed.
+%% @doc This function is used by developers for simple functionality
+%% tests and will be removed.
 %% @end
 %%--------------------------------------------------------------------
 -spec resource_test() -> any().
