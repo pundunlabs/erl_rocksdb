@@ -1,6 +1,4 @@
 #include "rocksdb_nif.h"
-#include "index_merger.h"
-#include "index_filter.h"
 #include "rocksdb/convenience.h"
 #include <iostream>
 
@@ -61,6 +59,7 @@ void delete_db(db_obj_resource* rdb) {
 
     delete rdb->cfd_options;
     delete rdb->cfi_options;
+    delete rdb->cfr_options;
 
     if( rdb->handles ) {
         for( auto h : *(rdb->handles) ) { delete h; }
@@ -128,52 +127,13 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    return -1;
 	}
 
-	if(strcmp(temp, "pid") == 0) {
-	    if(!enif_get_local_pid(env, tuple[1], &rdb->pid)) {
-		return -1;
-	    }
-	    rdb->cfi_options->merge_operator.reset(new rocksdb::IndexMerger(&rdb->pid));
-	}
-
-	if(strcmp(temp, "term_index") == 0) {
-	    ERL_NIF_TERM add_list = tuple[1];
-	    vector< pair<int,int> > list;
-	    int res = parse_int_pairs(env, add_list, &list);
-	    if (res) {
-		rdb->cfd_options->merge_operator.reset(new rocksdb::TermIndexMerger(&list));
-	    } else {
-		return -1;
-	    }
-
-	    //rdb->cfd_options->memtable_factory.reset(new rocksdb::VectorRepFactory());
-	    rdb->cfd_options->max_write_buffer_number=5;
-	    rdb->cfd_options->min_write_buffer_number_to_merge=2;
-	    //rdb->cfd_options->compression=rocksdb::CompressionType::kNoCompression;
-	    // Enable some features supporting prefix extraction
-	    // 2 Bytes for encoded Tid. Used when deleting by tid.
-	    rdb->cfd_options->prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(2));
-
-	    rdb->cfi_options->max_write_buffer_number=5;
-	    rdb->cfi_options->min_write_buffer_number_to_merge=2;
-	    //rdb->cfi_options->compression=rocksdb::CompressionType::kNoCompression;
-	    rdb->cfi_options->prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(2));
-
-	    options->max_background_flushes=8;
-	    options->env->SetBackgroundThreads(8, rocksdb::Env::Priority::LOW);
-	    options->env->SetBackgroundThreads(8, rocksdb::Env::Priority::HIGH);
-	    options->max_background_compactions = 8;
-	    options->max_subcompactions = 4;
-	    //options->level0_stop_writes_trigger=36
-	    //options->level0_slowdown_writes_trigger=20
-	}
-
 	if(strcmp(temp, "comparator") == 0) {
 	    if(enif_get_string(env, tuple[1], temp, sizeof(temp), ERL_NIF_LATIN1) < 1) {
 		return -1;
 	    }
 	    if(strcmp(temp, "descending") == 0) {
-		rdb->cfi_options->comparator = rocksdb::ReverseBytewiseComparator();
 		rdb->cfd_options->comparator = rocksdb::ReverseBytewiseComparator();
+		rdb->cfi_options->comparator = rocksdb::ReverseBytewiseComparator();
 	    }
 	}
 
@@ -184,6 +144,9 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    }
 	    rdb->ttl = (int32_t)int_ttl;
 	    rdb->type = DB_WITH_TTL;
+	    rdb->cfr_options->merge_operator.reset(new rocksdb::TermIndexMerger(rdb->ttl));
+	} else {
+	    rdb->cfr_options->merge_operator.reset(new rocksdb::TermIndexMerger(0));
 	}
 
 	if(strcmp(temp, "cf_raw_opts") == 0) {
@@ -191,27 +154,46 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    parse_kvl_to_map(env, tuple[1], opts_map);
 
 	    status = rocksdb::GetColumnFamilyOptionsFromMap(*rdb->cfd_options, // base
-						   opts_map,
-						   rdb->cfd_options, // update
-						   true);
+							    opts_map,
+							    rdb->cfd_options, // update
+							    true);
 	    if(!status.ok()) {
 		return -1;
 	    }
-
 	    status = rocksdb::GetColumnFamilyOptionsFromMap(*rdb->cfi_options, // base
-						   opts_map,
-						   rdb->cfi_options, // update
-						   true);
-
+							    opts_map,
+							    rdb->cfi_options, // update
+							    true);
+	    if(!status.ok()) {
+		return -1;
+	    }
+	    status = rocksdb::GetColumnFamilyOptionsFromMap(*rdb->cfr_options, // base
+							    opts_map,
+							    rdb->cfr_options, // update
+							    true);
 	    if(!status.ok()) {
 		return -1;
 	    }
 
 	}
-
 	kvl = tail;
     }
+    rdb->cfi_options->max_write_buffer_number=5;
+    rdb->cfr_options->max_write_buffer_number=5;
+    rdb->cfi_options->min_write_buffer_number_to_merge=2;
+    rdb->cfr_options->min_write_buffer_number_to_merge=2;
+    // Enable some features supporting prefix extraction
+    // 2 Bytes for encoded Cid. Used when deleting by cid.
+    rdb->cfi_options->prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(2));
+    rdb->cfr_options->prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(2));
 
+    options->max_background_flushes=8;
+    options->env->SetBackgroundThreads(8, rocksdb::Env::Priority::LOW);
+    options->env->SetBackgroundThreads(8, rocksdb::Env::Priority::HIGH);
+    options->max_background_compactions = 8;
+    options->max_subcompactions = 4;
+    //options->level0_stop_writes_trigger=36
+    //options->level0_slowdown_writes_trigger=20
     return 0;
 }
 
@@ -332,10 +314,11 @@ void open_db(rocksdb::DBOptions* options,
     vector<rocksdb::ColumnFamilyDescriptor> column_families;
     column_families.push_back(rocksdb::ColumnFamilyDescriptor(rocksdb::kDefaultColumnFamilyName, *(rdb->cfd_options)));
     column_families.push_back(rocksdb::ColumnFamilyDescriptor("index", *(rdb->cfi_options)));
+    column_families.push_back(rocksdb::ColumnFamilyDescriptor("reverse_index", *(rdb->cfr_options)));
     if (rdb->type == DB_WITH_TTL) {
 	rocksdb::DBWithTTL* db;
 	bool read_only = false;
-	std::vector<int32_t> ttl_values (2, rdb->ttl);
+	std::vector<int32_t> ttl_values (3, rdb->ttl);
 	*status = rocksdb::DBWithTTL::Open(*options, path_string,
 					   column_families, rdb->handles, &db,
 					   ttl_values, read_only);
@@ -351,20 +334,22 @@ void open_db(rocksdb::DBOptions* options,
 
 rocksdb::Status Get(db_obj_resource* rdb,
 		    rocksdb::ReadOptions* readoptions,
+		    int cf,
 		    rocksdb::Slice* key,
 		    rocksdb::PinnableSlice* value) {
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
-	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Get(*readoptions, rdb->handles->at(0), *key, value);
+	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Get(*readoptions, rdb->handles->at(cf), *key, value);
     } else {
-	status = static_cast<rocksdb::DB*>(rdb->object)->Get(*readoptions, rdb->handles->at(0), *key, value);
+	status = static_cast<rocksdb::DB*>(rdb->object)->Get(*readoptions, rdb->handles->at(cf), *key, value);
     }
     return status;
 }
 
 rocksdb::Status Put(db_obj_resource* rdb,
 		    rocksdb::WriteOptions* writeoptions,
-		    rocksdb::Slice* key, rocksdb::Slice* value) {
+		    rocksdb::Slice* key,
+		    rocksdb::Slice* value) {
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
 	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Put(*writeoptions, *key, *value);
@@ -374,14 +359,32 @@ rocksdb::Status Put(db_obj_resource* rdb,
     return status;
 }
 
-rocksdb::Status Delete(db_obj_resource* rdb,
-		       rocksdb::WriteOptions* writeoptions,
-		       rocksdb::Slice* key) {
+rocksdb::Status PutTerms(db_obj_resource* rdb,
+			 rocksdb::WriteOptions* writeoptions,
+			 rocksdb::Slice* key,
+			 rocksdb::Slice* value,
+			 std::vector<std::pair<Term, std::vector<Term>>> indices
+			) {
+    TermPrep tp = TermPrep(indices, key);
     rocksdb::Status status;
+    rocksdb::WriteBatch batch;
+    //Put value
+    batch.Put(rdb->handles->at(0), *key, *value);
+    //Merge for keeping index history
+    for (auto it = tp.index_.begin(); it != tp.index_.end(); ++it){
+	batch.Put(rdb->handles->at(1), it->first, it->second);
+    }
+    //Merges for reverse indexes
+    for (auto it = tp.rev_index_.begin(); it != tp.rev_index_.end(); ++it){
+	batch.Merge(rdb->handles->at(2), it->first, it->second);
+    }
+    //Apply batch according to db type
     if (rdb->type == DB_WITH_TTL) {
-	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Delete(*writeoptions, *key);
+	rocksdb::DBWithTTL* db = static_cast<rocksdb::DBWithTTL*>(rdb->object);
+	status = db->Write(*writeoptions, &batch);
     } else {
-	status = static_cast<rocksdb::DB*>(rdb->object)->Delete(*writeoptions, *key);
+	rocksdb::DB* db = static_cast<rocksdb::DB*>(rdb->object);
+	status = db->Write(*writeoptions, &batch);
     }
     return status;
 }
@@ -398,38 +401,44 @@ rocksdb::Status Write(db_obj_resource* rdb,
     return status;
 }
 
-rocksdb::Status IndexMerge(db_obj_resource* rdb,
-			   rocksdb::WriteOptions* writeoptions,
-			   rocksdb::Slice* key,
-			   rocksdb::Slice* value) {
+rocksdb::Status Delete(db_obj_resource* rdb,
+		       rocksdb::WriteOptions* writeoptions,
+		       rocksdb::Slice* key) {
+    std::cout << "Delete"  << std::endl;
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
-	rocksdb::DBWithTTL* db = static_cast<rocksdb::DBWithTTL*>(rdb->object);
-	status = db->Merge(*writeoptions, rdb->handles->at(1), *key, *value);
+	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Delete(*writeoptions, *key);
     } else {
-	rocksdb::DB* db = static_cast<rocksdb::DB*>(rdb->object);
-	status = db->Merge(*writeoptions, rdb->handles->at(1), *key, *value);
+	status = static_cast<rocksdb::DB*>(rdb->object)->Delete(*writeoptions, *key);
     }
     return status;
 }
 
-rocksdb::Status TermIndex(db_obj_resource* rdb,
-			  rocksdb::WriteOptions* writeoptions,
-			  const char* tidcid,
-			  std::vector<Term> terms,
-			  rocksdb::Slice* key) {
-    TermPrep tp = TermPrep(tidcid, terms, key);
+rocksdb::Status DeleteTerms(db_obj_resource* rdb,
+			    rocksdb::WriteOptions* writeoptions,
+			    rocksdb::Slice* key,
+			    std::vector<Term> cids) {
+    std::cout << "DeleteTerms"  << std::endl;
+    TermDelete td = TermDelete(cids, key);
     rocksdb::Status status;
     rocksdb::WriteBatch batch;
-    //Merges for reverse indexes
-    for (auto it = tp.terms_.begin(); it != tp.terms_.end(); ++it){
-	batch.Merge(rdb->handles->at(0), it->first, it->second);
+    rocksdb::ReadOptions readoptions;
+    //Delete value
+    batch.Delete(rdb->handles->at(0), *key);
+    //Delete index history
+    std::vector<rocksdb::PinnableSlice> term_strs;
+    for (auto it = td.index_.begin(); it != td.index_.end(); ++it){
+	std::cout << "Traverse history index"  << std::endl;
+	rocksdb::PinnableSlice value;
+	rocksdb::Status status = Get(rdb, &readoptions, 1, &(*it), &value);
+	term_strs.push_back( value );
+	batch.Delete(rdb->handles->at(1), *it);
     }
-    //Merge for keeping index history
-    if( tp.op_ == tp.ADD ) {
-	batch.Merge(rdb->handles->at(1),
-		    rocksdb::Slice(tp.index_key_),
-		    rocksdb::Slice(tp.terms_str_));
+    td.ParseReveseIndices(cids, term_strs, key);
+    //Merges for reverse indexes
+    for (auto it = td.rev_index_.begin(); it != td.rev_index_.end(); ++it){
+	std::cout << "Traverse reverse index"  << std::endl;
+	batch.Merge(rdb->handles->at(2), it->first, it->second);
     }
     //Apply batch according to db type
     if (rdb->type == DB_WITH_TTL) {
@@ -619,38 +628,6 @@ ERL_NIF_TERM make_status_tuple(ErlNifEnv* env,
     }
     //const char* stString = status->ToString().c_str();
     return enif_make_tuple2(env, atom_error, type);
-}
-
-int parse_int_pairs(ErlNifEnv* env,
-		     ERL_NIF_TERM add_list,
-		     std::vector< std::pair<int,int> >* list) {
-    unsigned int list_size;
-    /* get {tid, ttl} list resource */
-    if (!enif_get_list_length(env, add_list, &list_size)) {
-	return -1;
-    }
-
-    ERL_NIF_TERM head, tail;
-    int arity;
-    const ERL_NIF_TERM* tuple;
-    while(enif_get_list_cell(env, add_list, &head, &tail)) {
-	if( !enif_get_tuple(env, head, &arity, &tuple) ) {
-	    return -1;
-	}
-	/*get tid integer*/
-	int tid;
-	if( arity != 2 || !enif_get_int(env, tuple[0], &tid) ) {
-	    return -1;
-	}
-	/*get ttl integer*/
-	int ttl;
-	if ( !enif_get_int(env, tuple[1], &ttl) ) {
-	    return -1;
-	}
-	list->push_back( std::make_pair(tid, ttl) );
-	add_list = tail;
-    }
-    return 1;
 }
 
 int parse_kvl_to_map(ErlNifEnv* env, ERL_NIF_TERM kvl, unordered_map<string,string>& map) {

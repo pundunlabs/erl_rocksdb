@@ -40,6 +40,7 @@ typedef struct _db_obj_resource {
   char db_open;
   rocksdb::ColumnFamilyOptions* cfd_options;
   rocksdb::ColumnFamilyOptions* cfi_options;
+  rocksdb::ColumnFamilyOptions* cfr_options;
   vector<rocksdb::ColumnFamilyHandle*>* handles;
 } db_obj_resource;
 
@@ -78,6 +79,7 @@ extern void init_db(rocksdb::DB* db);
 
 extern rocksdb::Status Get(db_obj_resource* rdb,
 			   rocksdb::ReadOptions* readoptions,
+			   int cf,
 			   rocksdb::Slice* key,
 			   rocksdb::PinnableSlice* value);
 
@@ -86,24 +88,24 @@ extern rocksdb::Status Put(db_obj_resource* rdb,
 			   rocksdb::Slice* key,
 			   rocksdb::Slice* value);
 
+extern rocksdb::Status PutTerms(db_obj_resource* rdb,
+				rocksdb::WriteOptions* writeoptions,
+				rocksdb::Slice* key,
+				rocksdb::Slice* value,
+				std::vector<std::pair<Term, std::vector<Term>>> indices);
+
 extern rocksdb::Status Delete(db_obj_resource* rdb,
 			      rocksdb::WriteOptions* writeoptions,
 			      rocksdb::Slice* key);
 
+extern rocksdb::Status DeleteTerms(db_obj_resource* rdb,
+				   rocksdb::WriteOptions* writeoptions,
+				   rocksdb::Slice* key,
+				   std::vector<Term> cids);
+
 extern rocksdb::Status Write(db_obj_resource* rdb,
 			     rocksdb::WriteOptions* writeoptions,
 			     rocksdb::WriteBatch* batch);
-
-extern rocksdb::Status IndexMerge(db_obj_resource* rdb,
-				  rocksdb::WriteOptions* writeoptions,
-				  rocksdb::Slice* key,
-				  rocksdb::Slice* value);
-
-extern rocksdb::Status TermIndex(db_obj_resource* rdb,
-				 rocksdb::WriteOptions* writeoptions,
-				 const char* tidcid,
-				 std::vector<Term> terms,
-				 rocksdb::Slice* key);
 
 extern void GetApproximateSizes(db_obj_resource* rdb,
 				rocksdb::Range* ranges,
