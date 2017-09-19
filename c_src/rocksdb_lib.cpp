@@ -1,6 +1,5 @@
 #include "rocksdb_nif.h"
 #include "rocksdb/convenience.h"
-#include <iostream>
 
 namespace {
     /* atoms */
@@ -372,11 +371,15 @@ rocksdb::Status PutTerms(db_obj_resource* rdb,
     batch.Put(rdb->handles->at(0), *key, *value);
     //Merge for keeping index history
     for (auto it = tp.index_.begin(); it != tp.index_.end(); ++it){
-	batch.Put(rdb->handles->at(1), it->first, it->second);
+	batch.Put(rdb->handles->at(1),
+		  rocksdb::Slice(it->first),
+		  rocksdb::Slice(it->second));
     }
     //Merges for reverse indexes
     for (auto it = tp.rev_index_.begin(); it != tp.rev_index_.end(); ++it){
-	batch.Merge(rdb->handles->at(2), it->first, it->second);
+	batch.Merge(rdb->handles->at(2),
+		    rocksdb::Slice(it->first),
+		    rocksdb::Slice(it->second));
     }
     //Apply batch according to db type
     if (rdb->type == DB_WITH_TTL) {
@@ -404,7 +407,6 @@ rocksdb::Status Write(db_obj_resource* rdb,
 rocksdb::Status Delete(db_obj_resource* rdb,
 		       rocksdb::WriteOptions* writeoptions,
 		       rocksdb::Slice* key) {
-    std::cout << "Delete"  << std::endl;
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
 	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Delete(*writeoptions, *key);
@@ -418,7 +420,6 @@ rocksdb::Status DeleteTerms(db_obj_resource* rdb,
 			    rocksdb::WriteOptions* writeoptions,
 			    rocksdb::Slice* key,
 			    std::vector<Term> cids) {
-    std::cout << "DeleteTerms"  << std::endl;
     TermDelete td = TermDelete(cids, key);
     rocksdb::Status status;
     rocksdb::WriteBatch batch;
@@ -426,19 +427,20 @@ rocksdb::Status DeleteTerms(db_obj_resource* rdb,
     //Delete value
     batch.Delete(rdb->handles->at(0), *key);
     //Delete index history
-    std::vector<rocksdb::PinnableSlice> term_strs;
-    for (auto it = td.index_.begin(); it != td.index_.end(); ++it){
-	std::cout << "Traverse history index"  << std::endl;
+    std::vector<std::pair<std::string, rocksdb::PinnableSlice>> key_index;
+    for (auto it = td.index_.begin(); it != td.index_.end(); ++it) {
+	rocksdb::Slice key2term(*it);
 	rocksdb::PinnableSlice value;
-	rocksdb::Status status = Get(rdb, &readoptions, 1, &(*it), &value);
-	term_strs.push_back( value );
-	batch.Delete(rdb->handles->at(1), *it);
+	status = Get(rdb, &readoptions, 1, &key2term, &value);
+	if (status.ok()) { key_index.push_back( std::make_pair(*it, value) ); }
+	batch.Delete(rdb->handles->at(1), key2term);
     }
-    td.ParseReveseIndices(cids, term_strs, key);
+    td.ParseReveseIndices(key_index, key);
     //Merges for reverse indexes
     for (auto it = td.rev_index_.begin(); it != td.rev_index_.end(); ++it){
-	std::cout << "Traverse reverse index"  << std::endl;
-	batch.Merge(rdb->handles->at(2), it->first, it->second);
+	batch.Merge(rdb->handles->at(2),
+		    rocksdb::Slice(it->first),
+		    rocksdb::Slice(it->second));
     }
     //Apply batch according to db type
     if (rdb->type == DB_WITH_TTL) {
