@@ -14,12 +14,11 @@ class TermPrep {
 	TermPrep(const std::vector<std::pair<Term, std::vector<Term>>> indices,
 		 const rocksdb::Slice* k) {
 	    env_ = rocksdb::Env::Default();
-	    /*positng_len is:
-		4 bytes of encoded computed size (posting_len) +
+	    /* positng_len is:
+		4 bytes of encoded size (posting_len) +
 		key's size +
 		8 bytes for Freq and Pos stats +
-		4 bytes of timestamp
-	    */
+		4 bytes of timestamp */
 	    auto posting_len = k->size() + 16;
 	    int64_t curtime;
 	    if (!env_->GetCurrentTime(&curtime).ok()) { curtime = 0; }
@@ -28,50 +27,44 @@ class TermPrep {
 	    rocksdb::EncodeFixed32(ts_str, (uint32_t)curtime);
 	    rocksdb::EncodeFixed32(len_str, (uint32_t)posting_len);
 	    for (auto it = indices.begin(); it != indices.end(); ++it){
+		std::string terms_str;
 		Term cid = it->first;
 		std::vector<Term> terms = it->second;
-		std::string terms_str;
-		for (auto it = terms.begin(); it != terms.end(); ++it){
+		for (auto tit = terms.begin(); tit != terms.end(); ++tit){
 		    //Prepare posting 'p'
-		    char* p = (char *) malloc( sizeof(char) * ( posting_len ) );
+		    std::string p;
+		    p.reserve(posting_len);
 		    //Copy key->data to 'p' and append Freq and Pos bytes.
-		    memcpy(p, len_str, 4);
-		    memcpy(p + 4, k->data(), k->size());
-		    memcpy(p + 4 + k->size(), it->data + (it->size - 8), 8);
-		    memcpy(p + (posting_len - 4), ts_str, 4);
+		    p.append( len_str, 4 );
+		    p.append( k->data(), k->size() );
+		    p.append( tit->data + (tit->size - 8), 8 );
+		    p.append( ts_str, 4 );
 		    //Prepare term 't'
-		    size_t term_len = it->size - 8; //-8 Bytes for Freq and Pos
-		    char* t = (char *) malloc( sizeof(char) * ( term_len+2 ) );
+		    size_t term_len = tit->size - 8; //-8 Bytes for Freq and Pos
+		    std::string t;
+		    t.reserve(term_len + 2);
 		    //First 2 bytes are encoding Cid
-		    memcpy(t, cid.data, 2);
+		    t.append(cid.data, 2);
 		    //Last 8 bytes are encoding Freq and Pos statistics
 		    //Do not copy the last 8 bytes to 't' and 'terms_str_'
-		    memcpy(t+2, it->data, it->size-8);
-		    rev_index_.push_back(
-			std::make_pair(rocksdb::Slice(t,term_len+2),
-				       rocksdb::Slice(p,posting_len)));
+		    t.append(tit->data, term_len);
+		    rev_index_.push_back( std::make_pair(t, p) );
 		    char term_len_str[4];
 		    rocksdb::EncodeFixed32(term_len_str, (uint32_t)term_len);
 		    terms_str.append( term_len_str, 4 );
-		    terms_str.append( it->data, it->size - 8 );
+		    terms_str.append( tit->data, term_len );
 		}
 		std::string key2term;
 		key2term.append(cid.data, 2);
 		key2term.append(k->data(), k->size());
-		index_.push_back(std::make_pair(rocksdb::Slice(key2term),
-						rocksdb::Slice(terms_str)));
+		index_.push_back( std::make_pair(key2term, terms_str) );
 	    }
 	};
 
-	~TermPrep() {
-	    for (auto it = rev_index_.begin(); it != rev_index_.end(); ++it){
-		free ((void*) it->first.data());
-		free ((void*) it->second.data());
-	    }
-	};
+	~TermPrep() {};
 
-	std::vector<std::pair<rocksdb::Slice, rocksdb::Slice>> rev_index_;
-	std::vector<std::pair<rocksdb::Slice, rocksdb::Slice>> index_;
+	std::vector<std::pair<std::string, std::string>> rev_index_;
+	std::vector<std::pair<std::string, std::string>> index_;
     private:
 	rocksdb::Env* env_;
 	static int IsNotAlfaNumericOrSpace (int c) {
@@ -89,47 +82,41 @@ class TermDelete {
 		std::string key2term;
 		key2term.append(cid.data, 2);
 		key2term.append(k->data(), k->size());
-		index_.push_back( rocksdb::Slice(key2term) );
+		index_.push_back( key2term );
 	    }
 	};
 
-	~TermDelete() {
-	};
+	~TermDelete() {};
 
-	void ParseReveseIndices(const std::vector<Term> cids,
-				const std::vector<rocksdb::PinnableSlice> term_strs,
+	void ParseReveseIndices(const std::vector<std::pair<std::string, rocksdb::PinnableSlice>> key_index,
 				const rocksdb::Slice *k) {
 	    std::string posting;
 	    auto posting_len = k->size() + 16;
 	    char len_str[4];
-	    char zeroes[8];
 	    rocksdb::EncodeFixed32(len_str, (uint32_t)posting_len);
-	    rocksdb::EncodeFixed64(zeroes, (uint64_t)0);
-	    posting.append(len_str);
+	    posting.append(len_str, 4);
 	    posting.append(k->data(), k->size());
-	    posting.append(zeroes);
-	    for (size_t i = 0; i < cids.size(); ++i) {
-		Term cid = cids[i];
-		const char* str = term_strs[i].data();
-		auto size = term_strs[i].size();
+	    posting.append(zeroes_, 12);
+	    for (auto it = key_index.begin(); it != key_index.end(); ++it){
+		std::string cid_key = it->first;
+		const char* str = it->second.data();
+		auto size = it->second.size();
 		uint32_t j = 0;
 		// Parse terms until last 4 bytes (timestamp)
 		while( j < size ) {
 		    auto pos =  str + j;
 		    auto term_len = rocksdb::DecodeFixed32(pos);
 		    std::string term2key;
-		    term2key.append(cid.data, 2);
-		    std::cout << "pos: " << j << " term_len: " << term_len << std::endl;
+		    term2key.append(cid_key, 0, 2);
 		    term2key.append(pos+4, term_len);
-		    rev_index_.push_back(std::make_pair(rocksdb::Slice(term2key),
-							rocksdb::Slice(posting)));
+		    rev_index_.push_back(std::make_pair(term2key, posting));
 		    j += (term_len+4);
 		}
 	    }
 	}
-
-	std::vector<rocksdb::Slice> index_;
-	std::vector<std::pair<rocksdb::Slice, rocksdb::Slice>> rev_index_;
+	std::vector<std::string> index_;
+	std::vector<std::pair<std::string, std::string>> rev_index_;
     private:
 	rocksdb::Env* env_;
+	const char zeroes_[12] = {0};
 };

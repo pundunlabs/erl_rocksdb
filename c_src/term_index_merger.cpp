@@ -74,8 +74,8 @@ namespace rocksdb {
 	    str.append(it->data(), it->size());
 	    if ( is_delete ) {
 		postings.erase(str);
-	    }
-	    if ( !DBWithTTLImpl::IsStale(*it, ttl_, env_) ) {
+	    } else if ( !DBWithTTLImpl::IsStale(*it, ttl_, env_) ) {
+		postings.erase(str);
 		postings.emplace(str);
 	    }
 	}
