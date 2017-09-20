@@ -1,33 +1,16 @@
 #pragma once
-#include <vector>
-#include <deque>
-#include <string>
-#include <unordered_map>
-
 #include "rocksdb/merge_operator.h"
-#include "rocksdb/slice.h"
 #include "utilities/ttl/db_ttl_impl.h"
+#include "term_index_macros.h"
 
 namespace rocksdb {
-    class PostingComp
+    class KeyComp
     {
 	public:
 	    bool operator()(const std::string& a, const std::string& b) {
-		auto lex_comp = a.compare(4, a.size()-16, b, 4, b.size()-16);
-		if( lex_comp == 0 ) {
-		    return false;
-		}
-		auto freq_comp = a.compare(a.size()-12, 4, b, b.size()-12, 4);
-		auto pos_comp = a.compare(a.size()-8, 4, b, b.size()-8, 4);
-		if( freq_comp == 0 ) {
-		    if(pos_comp == 0) {
-			return lex_comp < 0;
-		    } else {
-			return pos_comp < 0;
-		    }
-		} else {
-		    return freq_comp > 0;
-		}
+		auto lex_comp = a.compare(pPrefixLen, a.size()-pExtLen,
+					  b, pPrefixLen, b.size()-pExtLen);
+		return lex_comp < 0;
 	    }
     };
 
@@ -47,11 +30,23 @@ namespace rocksdb {
 	    virtual const char* Name() const override;
 
 	    virtual bool IsDelete(const char* chars, size_t len) const;
+	    static bool PostingComp(const std::string& a,
+				    const std::string& b) {
+		auto freq_comp = a.compare(a.size()-pFreqOffset, pFreqLen,
+					   b, b.size()-pFreqOffset, pFreqLen);
+		if( freq_comp == 0 ) {
+		    auto pos_comp = a.compare(a.size()-pPosOffset, pPosLen,
+					      b, b.size()-pPosOffset, pPosLen);
+		    return pos_comp < 0;
+		} else {
+		    return freq_comp > 0;
+		}
+	    }
 
 	private:
 	    rocksdb::Env* env_;
 	    int32_t ttl_;
-	    const char remove_[4] = {0};
+	    const char remove_[pTSLen] = {0};
     };
 
 } // namespace rocksdb

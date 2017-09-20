@@ -1,14 +1,4 @@
 #include "term_index_merger.h"
-#include <memory>
-#include <string>
-#include <set>
-#include <assert.h>
-#include "rocksdb/slice.h"
-#include "rocksdb/merge_operator.h"
-#include "utilities/merge_operators.h"
-#include "utilities/ttl/db_ttl_impl.h"
-#include "rocksdb/convenience.h"
-#include "rocksdb/env.h"
 
 namespace rocksdb {
     TermIndexMerger::TermIndexMerger()
@@ -45,8 +35,7 @@ namespace rocksdb {
 	    numBytes += it->size();
 	}
 
-	std::set< std::string, rocksdb::PostingComp > postings;
-
+	std::set< std::string, rocksdb::KeyComp > posting_set;
 	// Parse and emplace portions of the *existing_value if one exists.
 	if (merge_in.existing_value) {
 	    const char* existing = merge_in.existing_value->data();
@@ -58,7 +47,8 @@ namespace rocksdb {
 		auto portion = rocksdb::DecodeFixed32(pos);
 		if ( !DBWithTTLImpl::IsStale(Slice(pos + portion), ttl_, env_) )
 		{
-		    postings.emplace(std::string(pos, portion));
+		    std::string posting = std::string(pos, portion);
+		    posting_set.emplace(posting);
 		}
 		i += portion;
 	    }
@@ -69,21 +59,33 @@ namespace rocksdb {
 
 	for (auto it = merge_in.operand_list.begin();
 		it != merge_in.operand_list.end(); ++it) {
-	    bool is_delete = IsDelete(it->data(), it->size());
-	    std::string str;
-	    str.append(it->data(), it->size());
+	    const char* pos = it->data();
+	    size_t size = it->size();
+	    bool is_delete = IsDelete(pos, size);
+	    std::string posting = std::string(pos, size);
 	    if ( is_delete ) {
-		postings.erase(str);
+		auto iter = posting_set.find(posting);
+		if (iter != posting_set.end()) {
+		    posting_set.erase(iter);
+		}
 	    } else if ( !DBWithTTLImpl::IsStale(*it, ttl_, env_) ) {
-		postings.erase(str);
-		postings.emplace(str);
+		auto iter = posting_set.find(posting);
+		if (iter != posting_set.end()) {
+		    auto hint = posting_set.erase(iter);
+		    posting_set.emplace_hint(hint, posting);
+		} else{
+		    posting_set.emplace(posting);
+		}
 	    }
 	}
-
+	std::vector< std::string > postings;
+	for (auto it = posting_set.begin(); it != posting_set.end(); ++it) {
+	    postings.push_back( *it );
+	}
+	std::sort(postings.begin(), postings.end(), PostingComp);
 	for (auto it = postings.begin(); it != postings.end(); ++it) {
 	    merge_out->new_value.append(*it);
 	}
-
 	return true;
     }
 
@@ -99,12 +101,11 @@ namespace rocksdb {
     }
 
     bool TermIndexMerger::IsDelete(const char* chars, size_t len) const {
-	if (memcmp(remove_, chars+(len-4), 4) == 0) { return true; }
+	if (memcmp(remove_, chars+(len-pTSLen), pTSLen) == 0) { return true; }
 	else { return false; }
     }
 
-    std::shared_ptr<MergeOperator>
-	CreateTermIndexMerger() {
-	    return std::make_shared<TermIndexMerger>();
-	}
+    std::shared_ptr<MergeOperator> CreateTermIndexMerger() {
+	return std::make_shared<TermIndexMerger>();
+    }
 } // namespace rocksdb
