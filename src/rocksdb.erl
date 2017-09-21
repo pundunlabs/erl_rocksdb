@@ -6,7 +6,8 @@
          put/5,
          delete/4,
          write/4,
-	 index_get/3]).
+	 index_get/3,
+	 delete_indices/2]).
 
 -export([options/1,
 	 readoptions/1,
@@ -154,6 +155,16 @@ write(_db, _writeoptions, _Delete_Ks, _Put_KVs)->
 -spec index_get(DB :: db(), ReadOptions :: readoptions(), Key :: key()) ->
     {ok, value()} | {error, Reason :: any()}.
 index_get(_db, _readoptions, _Key)->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Get the postings of the reverse index provided by Key from
+%% rocksdb database referenced by NIF Resource DB.
+%% @end
+%%--------------------------------------------------------------------
+-spec delete_indices(DB :: db(), Cids :: [binary()]) ->
+    {ok, value()} | {error, Reason :: any()}.
+delete_indices(_db, _cids)->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
