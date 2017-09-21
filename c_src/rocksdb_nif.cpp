@@ -525,6 +525,63 @@ ERL_NIF_TERM index_get_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) 
     }
 }
 
+ERL_NIF_TERM delete_indices_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    db_obj_resource *rdb;
+    rocksdb::DB* db;
+    /* get db_ptr resource */
+    if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+    //Cast resource to rocksdb::DB*, we are sure it is not a ttl db.
+    db = static_cast<rocksdb::DB*>(rdb->object);
+    /* get cids resource */
+    ERL_NIF_TERM cid_list = argv[1];
+    ERL_NIF_TERM head, tail;
+    ErlNifBinary cidterm;
+    std::vector<std::string> cids;
+    while(enif_get_list_cell(env, cid_list, &head, &tail)){
+	if( enif_inspect_binary(env, head, &cidterm) ) {
+	    std::string cid((const char*) cidterm.data, (size_t) cidterm.size);
+	    cids.push_back( cid );
+	} else { return enif_make_badarg(env); }
+	cid_list = tail;
+    }
+    rocksdb::ReadOptions ro;
+    rocksdb::WriteOptions wo;
+    for (auto it = cids.begin(); it != cids.end(); ++it) {
+	std::string cid = *it;
+	//Define the range (begin, end) to be removed.
+	unsigned char bytes[4] = {0xff, 0xff, 0xff, 0xff};
+	std::string end_string = cid;
+	end_string.append((const char*)bytes, 4);
+	rocksdb::Slice begin(cid);
+	rocksdb::Slice end(end_string);
+	auto handles = *(rdb->handles);
+	std::vector<rocksdb::ColumnFamilyHandle*> ix_handles(handles.begin()+1, handles.end());
+	//First delete files in range to reclaim the space faster.
+	rocksdb::DeleteFilesInRange(db, ix_handles.at(0), &begin, &end);
+	rocksdb::DeleteFilesInRange(db, ix_handles.at(1), &begin, &end);
+	//Then delete remaining entries on other sst files one by one
+	/*Create rocksdb iterators*/
+	std::vector<rocksdb::Iterator*> iterators;
+	db->NewIterators(ro, ix_handles, &iterators);
+	int cf = 0;
+	for (auto it : iterators) {
+	    for (it->Seek(begin);
+		    it->Valid() && it->key().starts_with(begin);
+		    it->Next()) {
+		db->Delete(wo, ix_handles.at(cf), it->key());
+	    }
+	    cf++;
+	}
+	for (auto it : iterators) { delete it; }
+	//Last, compact the range to reclaim space.
+	db->CompactRange(rocksdb::CompactRangeOptions(), ix_handles.at(0), &begin, &end);
+	db->CompactRange(rocksdb::CompactRangeOptions(), ix_handles.at(1), &begin, &end);
+    }
+    return atom_ok;
+}
+
 /*Resource making*/
 ERL_NIF_TERM options_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     ERL_NIF_TERM term;
@@ -1404,6 +1461,7 @@ ErlNifFunc nif_funcs[] = {
     {"delete", 4, delete_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"write", 4, write_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"index_get", 3, index_get_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"delete_indices", 2, delete_indices_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
     {"options", 1, options_nif},
     {"readoptions", 1, readoptions_nif},
