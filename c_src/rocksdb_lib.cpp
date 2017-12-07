@@ -132,7 +132,6 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    }
 	    if(strcmp(temp, "descending") == 0) {
 		rdb->cfd_options->comparator = rocksdb::ReverseBytewiseComparator();
-		rdb->cfi_options->comparator = rocksdb::ReverseBytewiseComparator();
 	    }
 	}
 
@@ -432,15 +431,16 @@ rocksdb::Status DeleteTerms(db_obj_resource* rdb,
 	rocksdb::Slice key2term(*it);
 	rocksdb::PinnableSlice value;
 	status = Get(rdb, &readoptions, 1, &key2term, &value);
-	if (status.ok()) { key_index.push_back( std::make_pair(*it, value) ); }
+	if (status.ok()) {
+	    td.ParseReveseIndex(*it, &value);
+	}
 	batch.Delete(rdb->handles->at(1), key2term);
     }
-    td.ParseReveseIndices(key_index, key);
     //Merges for reverse indexes
     for (auto it = td.rev_index_.begin(); it != td.rev_index_.end(); ++it){
 	batch.Merge(rdb->handles->at(2),
-		    rocksdb::Slice(it->first),
-		    rocksdb::Slice(it->second));
+		    rocksdb::Slice(*it),
+		    rocksdb::Slice(td.posting_));
     }
     //Apply batch according to db type
     if (rdb->type == DB_WITH_TTL) {

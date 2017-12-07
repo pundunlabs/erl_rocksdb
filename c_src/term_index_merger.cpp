@@ -48,7 +48,7 @@ namespace rocksdb {
 		if ( !DBWithTTLImpl::IsStale(Slice(pos + portion), ttl_, env_) )
 		{
 		    std::string posting = std::string(pos, portion);
-		    posting_set.emplace(posting);
+		    posting_set.emplace(std::move(posting));
 		}
 		i += portion;
 	    }
@@ -72,15 +72,15 @@ namespace rocksdb {
 		auto iter = posting_set.find(posting);
 		if (iter != posting_set.end()) {
 		    auto hint = posting_set.erase(iter);
-		    posting_set.emplace_hint(hint, posting);
+		    posting_set.emplace_hint(hint, std::move(posting));
 		} else{
-		    posting_set.emplace(posting);
+		    posting_set.emplace(std::move(posting));
 		}
 	    }
 	}
 	std::vector< std::string > postings;
 	for (auto it = posting_set.begin(); it != posting_set.end(); ++it) {
-	    postings.push_back( *it );
+	    postings.push_back( std::move(*it) );
 	}
 	std::sort(postings.begin(), postings.end(), PostingComp);
 	for (auto it = postings.begin(); it != postings.end(); ++it) {

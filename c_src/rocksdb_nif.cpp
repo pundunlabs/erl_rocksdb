@@ -173,7 +173,6 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 
 	ERL_NIF_TERM db_term;
 
-
 	open_db(options, path, rdb, &status);
 	rdb->db_open = 1;
 
@@ -548,8 +547,8 @@ ERL_NIF_TERM delete_indices_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
     }
     rocksdb::ReadOptions ro;
     rocksdb::WriteOptions wo;
-    for (auto it = cids.begin(); it != cids.end(); ++it) {
-	std::string cid = *it;
+    for (auto cid_it = cids.begin(); cid_it != cids.end(); ++cid_it) {
+	std::string cid = *cid_it;
 	//Define the range (begin, end) to be removed.
 	unsigned char bytes[4] = {0xff, 0xff, 0xff, 0xff};
 	std::string end_string = cid;
@@ -568,13 +567,13 @@ ERL_NIF_TERM delete_indices_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
 	int cf = 0;
 	for (auto it : iterators) {
 	    for (it->Seek(begin);
-		    it->Valid() && it->key().starts_with(begin);
-		    it->Next()) {
+		 it->Valid() && it->key().starts_with(begin);
+		 it->Next()) {
 		db->Delete(wo, ix_handles.at(cf), it->key());
 	    }
 	    cf++;
 	}
-	for (auto it : iterators) { delete it; }
+	for (auto del_it : iterators) { delete del_it; }
 	//Last, compact the range to reclaim space.
 	db->CompactRange(rocksdb::CompactRangeOptions(), ix_handles.at(0), &begin, &end);
 	db->CompactRange(rocksdb::CompactRangeOptions(), ix_handles.at(1), &begin, &end);
@@ -855,7 +854,7 @@ ERL_NIF_TERM read_range_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if (argc != 5 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
-    auto comparator = rdb->cfi_options->comparator;
+    auto comparator = rdb->cfd_options->comparator;
     /*get options resource*/
     if (!enif_get_resource(env, argv[1], optionResource, (void **) &opts)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "options"));
