@@ -155,13 +155,19 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     char path[MAXPATHLEN];
     rocksdb::DBOptions* options;
     opt_obj_resource* opts;
-    ERL_NIF_TERM kvl = argv[2];
+    ERL_NIF_TERM kvl;
     rocksdb::Status status;
+    int threads;
+
+    if (argc < 3 || argc > 4) {
+	return enif_make_badarg(env);
+    }
 
     /*get options resource*/
-    if (argc != 3 || !enif_get_resource(env, argv[0], optionResource, (void **)&opts)) {
+    if (!enif_get_resource(env, argv[0], optionResource, (void **)&opts)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "options"));
     }
+
     /*set will hold the iterators for this db*/
     options = (rocksdb::DBOptions*) opts->object;
 
@@ -169,6 +175,19 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     if(enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1) < 1){
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "path"));
     }
+    /* third argument the key value list */
+    kvl = argv[2];
+     
+    /* forth argument can be number of threads */
+    if (argc == 4) {
+	if (!enif_get_int(env, argv[3], &threads)) {
+	    return enif_make_tuple2(env, atom_error, enif_make_atom(env, "threads"));
+	}
+    }
+    else {
+      threads = 8;
+    }
+
     db_obj_resource* rdb = (db_obj_resource *) enif_alloc_resource(dbResource, sizeof(db_obj_resource));
 
     rdb->type = DB_DEFAULT;
@@ -181,7 +200,7 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     rdb->cfi_options = new rocksdb::ColumnFamilyOptions();
     rdb->cfr_options = new rocksdb::ColumnFamilyOptions();
 
-    if ( fix_cf_options(env, kvl, rdb, options, status) != 0 ) {
+    if ( fix_cf_options(env, kvl, rdb, options, status, threads) != 0 ) {
 	enif_release_resource(rdb);
 	if(!status.ok()) {
 	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
@@ -1473,6 +1492,7 @@ ERL_NIF_TERM create_checkpoint_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
 
 ErlNifFunc nif_funcs[] = {
     {"open_db", 3, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"open_db", 4, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"close_db", 1, close_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"get", 3, get_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"put", 5, put_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},

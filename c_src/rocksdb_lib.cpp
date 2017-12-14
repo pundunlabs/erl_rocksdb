@@ -106,7 +106,8 @@ void delete_rit(it_obj_resource* rit) {
 int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 		   db_obj_resource* rdb,
 		   rocksdb::DBOptions* options,
-		   rocksdb::Status& status) {
+		   rocksdb::Status& status,
+		   int num_threads) {
     unsigned int kvl_len;
     char temp[MAXPATHLEN];
 
@@ -187,11 +188,8 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
     rdb->cfi_options->prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(2));
     rdb->cfr_options->prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(2));
 
-    options->max_background_flushes=8;
-    options->env->SetBackgroundThreads(8, rocksdb::Env::Priority::LOW);
-    options->env->SetBackgroundThreads(8, rocksdb::Env::Priority::HIGH);
-    options->max_background_compactions = 8;
-    options->max_subcompactions = 4;
+    options->env->SetBackgroundThreads(num_threads);
+    options->max_background_jobs = num_threads;
     //options->level0_stop_writes_trigger=36
     //options->level0_slowdown_writes_trigger=20
     return 0;
@@ -339,7 +337,7 @@ rocksdb::Status Get(db_obj_resource* rdb,
 		    rocksdb::PinnableSlice* value) {
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
-	status = static_cast<rocksdb::PundunTTLImpl*>(rdb->object)->Get(*readoptions, rdb->handles->at(cf), *key, value);
+	status = static_cast<rocksdb::PundunTTL*>(rdb->object)->Get(*readoptions, rdb->handles->at(cf), *key, value);
     } else {
 	status = static_cast<rocksdb::DB*>(rdb->object)->Get(*readoptions, rdb->handles->at(cf), *key, value);
     }
@@ -352,7 +350,7 @@ rocksdb::Status Put(db_obj_resource* rdb,
 		    rocksdb::Slice* value) {
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
-	status = static_cast<rocksdb::PundunTTLImpl*>(rdb->object)->Put(*writeoptions, *key, *value);
+	status = static_cast<rocksdb::PundunTTL*>(rdb->object)->Put(*writeoptions, *key, *value);
     } else {
 	status = static_cast<rocksdb::DB*>(rdb->object)->Put(*writeoptions, *key, *value);
     }
@@ -384,7 +382,7 @@ rocksdb::Status PutTerms(db_obj_resource* rdb,
     }
     //Apply batch according to db type
     if (rdb->type == DB_WITH_TTL) {
-	rocksdb::PundunTTLImpl* db = static_cast<rocksdb::PundunTTLImpl*>(rdb->object);
+	rocksdb::PundunTTL* db = static_cast<rocksdb::PundunTTL*>(rdb->object);
 	status = db->Write(*writeoptions, &batch);
     } else {
 	rocksdb::DB* db = static_cast<rocksdb::DB*>(rdb->object);
