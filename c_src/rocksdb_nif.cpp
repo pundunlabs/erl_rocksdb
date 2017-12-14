@@ -7,6 +7,7 @@
 
 #include "port/port.h"
 #include "rocksdb_nif.h"
+
 #include <string>
 
 namespace  { /* anonymous namespace starts */
@@ -112,6 +113,24 @@ void readoption_destructor(ErlNifEnv* env, void* _ropts) {
 void writeoption_destructor(ErlNifEnv* env, void* _wopts) {
     opt_obj_resource *wopts = (opt_obj_resource*) _wopts;
     delete (rocksdb::WriteOptions*) wopts->object;
+}
+
+/* change ttl value for open db */
+ERL_NIF_TERM set_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    db_obj_resource *rdb;
+    int32_t ttl;
+
+    /*get db_ptr resource*/
+    if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+
+    /*get ttl integer*/
+    if (!enif_get_int(env, argv[1], &ttl)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "ttl"));
+    }
+    SetTtl(rdb, ttl);
+    return atom_ok;
 }
 
 /*Test NIFs for experimenting*/
@@ -1489,6 +1508,8 @@ ErlNifFunc nif_funcs[] = {
     {"restore_db", 3, restore_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"restore_db", 4, restore_db_by_id_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"create_checkpoint", 2, create_checkpoint_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    
+    {"set_ttl", 2, set_ttl_nif},
 
     {"resource_test", 0, resource_test_nif}
 
