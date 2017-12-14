@@ -139,4 +139,7 @@ extern ERL_NIF_TERM make_status_tuple(ErlNifEnv* env,
 extern int parse_int_pairs(ErlNifEnv* env,
 			    ERL_NIF_TERM add_list,
 			    vector< pair<int,int> >* list);
+
+void SetTtl(db_obj_resource *rdb, int32_t ttl);
+
 #endif /*ROCKSDB_NIF_H*/

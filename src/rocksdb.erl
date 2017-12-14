@@ -35,7 +35,8 @@
 	 get_backup_info/1,
 	 restore_db/3,
 	 restore_db/4,
-	 create_checkpoint/2]).
+	 create_checkpoint/2,
+	 set_ttl/2]).
 
 -export([resource_test/0]).
 
@@ -58,6 +59,8 @@
 -type start() :: key().
 -type limit() :: key().
 -type range() :: {start(), limit()}.
+
+-export([init/0]).
 
 init() ->
     Dir = "../priv",
@@ -416,4 +419,8 @@ create_checkpoint(_db, _path) ->
 %%--------------------------------------------------------------------
 -spec resource_test() -> any().
 resource_test()->
+    erlang:nif_error(nif_library_not_loaded).
+
+-spec set_ttl(DB :: db(), TTL :: integer()) -> ok.
+set_ttl(_DB, _TLL) ->
     erlang:nif_error(nif_library_not_loaded).
