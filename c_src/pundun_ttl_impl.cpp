@@ -293,7 +293,7 @@ Iterator* PundunTTLImpl::NewIterator(const ReadOptions& opts,
   return new PundunTtlIterator(db_->NewIterator(opts, column_family));
 }
 
-void PundunTTLImpl::SetTtl(ColumnFamilyHandle *h, int32_t ttl)  const {
+void PundunTTLImpl::SetTtl(ColumnFamilyHandle *h, int32_t ttl) {
     std::shared_ptr<PundunTtlCompactionFilterFactory> filter;
     Options opts;
     opts = GetOptions(h);

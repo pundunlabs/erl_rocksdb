@@ -90,7 +90,7 @@ class PundunTTLImpl : public PundunTTL {
   static const int32_t kMinTimestamp = 1368146402;  // 05/09/2013:5:40PM GMT-8
 
   static const int32_t kMaxTimestamp = 2147483647;  // 01/18/2038:7:14PM GMT-8
-  void SetTtl(ColumnFamilyHandle *h, int32_t ttl) const;
+  void SetTtl(ColumnFamilyHandle *h, int32_t ttl);
 
 };
 
@@ -179,10 +179,10 @@ class PundunTtlCompactionFilter : public CompactionFilter {
   }
 
   virtual const char* Name() const override { return "Delete By TTL"; }
-  void SetTtl(int32_t ttl) const { ttl_ = ttl; }
+  void SetTtl(int32_t ttl) { ttl_ = ttl; }
  
  private:
-  mutable int32_t ttl_;
+  int32_t ttl_;
   Env* env_;
   const CompactionFilter* user_comp_filter_;
   std::unique_ptr<const CompactionFilter> user_comp_filter_from_factory_;
