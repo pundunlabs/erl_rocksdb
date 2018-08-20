@@ -775,14 +775,14 @@ ERL_NIF_TERM repair_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) 
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "options"));
     }
     options = (rocksdb::DBOptions *) opts->object;
-    rocksdb::Status* status;
+    rocksdb::Status status;
     auto* opt = reinterpret_cast<rocksdb::Options*>(options);
-    *status = RepairDB(path, *opt);
+    status = RepairDB(path, *opt);
 
-    if (status->ok())
+    if (status.ok())
 	return atom_ok;
 
-    ERL_NIF_TERM status_tuple = make_status_tuple(env, status);
+    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
     return status_tuple;
 }
 
@@ -1490,6 +1490,22 @@ ERL_NIF_TERM create_checkpoint_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
     }
 }
 
+/* get memory usage*/
+ERL_NIF_TERM memory_usage_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    db_obj_resource *rdb;
+    rocksdb::DB* db;
+    uint64_t mem_total = 0;
+    uint64_t mem_unflushed = 0;
+    uint64_t mem_cached = 0;
+
+    /* get db_ptr resource */
+    if (argc != 1 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+
+    return rocksdb_memory_usage(env, rdb);
+}
+
 ErlNifFunc nif_funcs[] = {
     {"open_db", 3, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"open_db", 4, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -1531,7 +1547,9 @@ ErlNifFunc nif_funcs[] = {
     
     {"set_ttl", 2, set_ttl_nif},
 
-    {"resource_test", 0, resource_test_nif}
+    {"resource_test", 0, resource_test_nif},
+
+    {"memory_usage", 1, memory_usage_nif}
 
 };
 } /* anonymouse namespace ends */

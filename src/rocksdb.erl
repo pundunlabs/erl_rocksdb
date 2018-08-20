@@ -39,6 +39,8 @@
 	 create_checkpoint/2,
 	 set_ttl/2]).
 
+-export([memory_usage/1]).
+
 -export([resource_test/0]).
 
 -export_type([db/0,
@@ -386,6 +388,18 @@ backup_db(_db, _path) ->
 -spec get_backup_info(Path :: string()) ->
     {ok, [term()]} | {error, Reason :: any()}.
 get_backup_info(_path) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Get rocksdb memory usage for the shard.
+%% @end
+%%--------------------------------------------------------------------
+-spec memory_usage(DB :: db()) ->
+	  [{mem_total, MemTableTotal :: integer()} |
+	   {mem_unflushed, MemTableUnFlusehd :: integer()} |
+	   {mem_chached, CachedMemory :: integer()}] |
+	{error, Reason :: any()}.
+memory_usage(_DB) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------

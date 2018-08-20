@@ -2,6 +2,7 @@
 #include "rocksdb/convenience.h"
 #include "pundun_ttl.h"
 #include "pundun_ttl_impl.h"
+#include "table/block_based_table_factory.h"
 
 namespace {
     /* atoms */
@@ -21,6 +22,9 @@ namespace {
     ERL_NIF_TERM atom_expired;
     ERL_NIF_TERM atom_try_again;
     ERL_NIF_TERM atom_no_space;
+    ERL_NIF_TERM atom_mem_total;
+    ERL_NIF_TERM atom_mem_unflushed;
+    ERL_NIF_TERM atom_mem_cached;
 
     int get_bool(ErlNifEnv* env, ERL_NIF_TERM term) {
 	char buf[6];
@@ -53,6 +57,9 @@ void init_lib_atoms(ErlNifEnv* env) {
     atom_expired = enif_make_atom(env, "expired");
     atom_try_again = enif_make_atom(env, "try_again");
     atom_no_space = enif_make_atom(env, "no_space");
+    atom_mem_total = enif_make_atom(env, "mem_total");
+    atom_mem_unflushed = enif_make_atom(env, "mem_unflushed");
+    atom_mem_cached = enif_make_atom(env, "mem_cached");
 }
 
 void delete_db(db_obj_resource* rdb) {
@@ -177,8 +184,53 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    }
 
 	}
+
+	if(strcmp(temp, "cache_size") == 0) {
+	    int cache_size; // cache size in MB
+
+	    if(!enif_get_int(env, tuple[1], &cache_size)) {
+		return -1;
+	    }
+
+	    // convert to bytes
+	    cache_size *= 1024*1024;
+
+	    rocksdb::BlockBasedTableOptions bbto_d;
+	    bbto_d.no_block_cache = false;
+	    bbto_d.cache_index_and_filter_blocks = true;
+	    bbto_d.block_cache = rocksdb::NewLRUCache(cache_size);
+	    rdb->cfd_options->table_factory.reset(NewBlockBasedTableFactory(bbto_d));
+
+	    rocksdb::BlockBasedTableOptions bbto_i;
+	    bbto_i.no_block_cache = false;
+	    bbto_i.cache_index_and_filter_blocks = true;
+	    bbto_i.block_cache = rocksdb::NewLRUCache(cache_size);
+	    rdb->cfi_options->table_factory.reset(NewBlockBasedTableFactory(bbto_i));
+
+	    rocksdb::BlockBasedTableOptions bbto_r;
+	    bbto_r.no_block_cache = false;
+	    bbto_r.cache_index_and_filter_blocks = true;
+	    bbto_r.block_cache = rocksdb::NewLRUCache(cache_size);
+	    rdb->cfr_options->table_factory.reset(NewBlockBasedTableFactory(bbto_r));
+
+	}
+
+	if(strcmp(temp, "write_buffer_size") == 0) {
+	    int write_buffer_size; // write buffer size in MB
+
+	    if(!enif_get_int(env, tuple[1], &write_buffer_size)) {
+		return -1;
+	    }
+	    // convert to bytes
+	    write_buffer_size *= 1024*1024;
+
+	    rdb->cfd_options->write_buffer_size = write_buffer_size;
+	    rdb->cfi_options->write_buffer_size = write_buffer_size;
+	    rdb->cfr_options->write_buffer_size = write_buffer_size;
+	}
 	kvl = tail;
     }
+
     rdb->cfi_options->max_write_buffer_number=5;
     rdb->cfr_options->max_write_buffer_number=5;
     rdb->cfi_options->min_write_buffer_number_to_merge=2;
@@ -673,4 +725,54 @@ void SetTtl(db_obj_resource* rdb, int32_t ttl) {
 	    }
 	}
     }
+}
+
+ERL_NIF_TERM rocksdb_memory_usage(ErlNifEnv* env, db_obj_resource* rdb) {
+    rocksdb::DB* db;
+    uint64_t mem_total = 0;
+    uint64_t mem_unflushed = 0;
+    uint64_t mem_cached = 0;
+    const rocksdb::BlockBasedTableFactory* bbtfd;
+    const rocksdb::BlockBasedTableFactory* bbtfi;
+    const rocksdb::BlockBasedTableFactory* bbtfr;
+
+    db = static_cast<rocksdb::DB*>(rdb->object);
+
+    //MemTable Total
+    db->GetAggregatedIntProperty(rocksdb::DB::Properties::kSizeAllMemTables,
+                                 &mem_total);
+    //MemTable UnFlushed Mem
+    db->GetAggregatedIntProperty(rocksdb::DB::Properties::kCurSizeAllMemTables,
+				 &mem_unflushed);
+
+    //Cache Memory Data
+    bbtfd =
+	dynamic_cast<const rocksdb::BlockBasedTableFactory *>
+	    (rdb->cfd_options->table_factory.get());
+    const auto bbt_optsd = bbtfd->table_options();
+    mem_cached = bbt_optsd.block_cache->GetUsage();
+
+    //Cache Memory Index
+    bbtfi =
+	dynamic_cast<const rocksdb::BlockBasedTableFactory *>
+	    (rdb->cfi_options->table_factory.get());
+    const auto bbt_optsi = bbtfi->table_options();
+    mem_cached = bbt_optsi.block_cache->GetUsage();
+
+    //Cache Memory Reverse Index
+    bbtfr =
+	dynamic_cast<const rocksdb::BlockBasedTableFactory *>
+	    (rdb->cfr_options->table_factory.get());
+    const auto bbt_optsr = bbtfr->table_options();
+    mem_cached = bbt_optsr.block_cache->GetUsage();
+
+    return enif_make_list3(env,
+		enif_make_tuple2(env, atom_mem_total,
+			enif_make_int64(env, (ErlNifSInt64) mem_total)),
+
+		enif_make_tuple2(env, atom_mem_unflushed,
+			enif_make_int64(env, (ErlNifSInt64) mem_unflushed)),
+
+		enif_make_tuple2(env, atom_mem_cached,
+			enif_make_int64(env, (ErlNifSInt64) mem_cached)));
 }

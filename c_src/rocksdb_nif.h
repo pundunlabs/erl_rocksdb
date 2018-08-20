@@ -143,4 +143,6 @@ extern int parse_int_pairs(ErlNifEnv* env,
 
 void SetTtl(db_obj_resource *rdb, int32_t ttl);
 
+extern ERL_NIF_TERM rocksdb_memory_usage(ErlNifEnv* env, db_obj_resource* rdb);
+
 #endif /*ROCKSDB_NIF_H*/
