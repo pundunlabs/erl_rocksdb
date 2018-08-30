@@ -242,6 +242,9 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 
     options->env->SetBackgroundThreads(num_threads);
     options->max_background_jobs = num_threads;
+
+    options->skip_stats_update_on_db_open=true;
+
     //options->level0_stop_writes_trigger=36
     //options->level0_slowdown_writes_trigger=20
     return 0;
