@@ -24,7 +24,6 @@ fi
 (cd ${ROCKSDB_DIR} && \
     make -j 4 libzstd.a && \
     make -j 4 libsnappy.a && \
-    make -j 4 libbz2.a && \
     make -j 4 libz.a && \
     make -j 4 liblz4.a && \
     make -j 4 static_lib)
