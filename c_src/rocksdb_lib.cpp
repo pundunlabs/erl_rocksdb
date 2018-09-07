@@ -481,7 +481,6 @@ rocksdb::Status DeleteTerms(db_obj_resource* rdb,
     //Delete value
     batch.Delete(rdb->handles->at(0), *key);
     //Delete index history
-    std::vector<std::pair<std::string, rocksdb::PinnableSlice>> key_index;
     for (auto it = td.index_.begin(); it != td.index_.end(); ++it) {
 	rocksdb::Slice key2term(*it);
 	rocksdb::PinnableSlice value;
