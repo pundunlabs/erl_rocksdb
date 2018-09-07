@@ -227,6 +227,31 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    rdb->cfi_options->write_buffer_size = write_buffer_size;
 	    rdb->cfr_options->write_buffer_size = write_buffer_size;
 	}
+
+	if(strcmp(temp, "fifo_ttl") == 0) {
+	    const ERL_NIF_TERM* fifo_tuple;
+	    int fifo_arity;
+	    int ttl; // time to live in seconds
+	    int size; // max table files size
+	    if(!enif_get_tuple(env, tuple[1], &fifo_arity, &fifo_tuple)) {
+		return -1;
+	    }
+
+	    if(!enif_get_int(env, fifo_tuple[0], &ttl)) {
+		return -1;
+	    }
+
+	    if(!enif_get_int(env, fifo_tuple[1], &size)) {
+		return -1;
+	    }
+
+	    // convert to bytes, input in MB
+	    size *= 1024*1024;
+	    rdb->cfd_options->compaction_style = rocksdb::kCompactionStyleFIFO;
+	    rdb->cfd_options->compaction_options_fifo.max_table_files_size = size;
+	    rdb->cfd_options->compaction_options_fifo.allow_compaction = true;
+	    rdb->cfd_options->compaction_options_fifo.ttl = ttl;
+	}
 	kvl = tail;
     }
 
