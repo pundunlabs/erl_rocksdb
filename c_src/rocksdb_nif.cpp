@@ -19,6 +19,7 @@ ErlNifResourceType* readoptionResource;
 ErlNifResourceType* writeoptionResource;
 ErlNifResourceType* dbResource;
 ErlNifResourceType* iteratorResource;
+ErlNifResourceType* lruResource;
 
 
 /* atoms */
@@ -33,6 +34,7 @@ void option_destructor(ErlNifEnv* env, void *opts);
 void readoption_destructor(ErlNifEnv* env, void *ropts);
 void writeoption_destructor(ErlNifEnv* env, void *wopts);
 void iterator_destructor(ErlNifEnv* env, void *it);
+void lru_destructor(ErlNifEnv* env, void *lru);
 
 int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info){
     dbResource = enif_open_resource_type(env,
@@ -67,6 +69,12 @@ int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info){
 	    "rocksdb_nif",
 	    "iterator_resource",
 	    iterator_destructor,
+	    resource_flags,
+	    0);
+    lruResource = enif_open_resource_type(env,
+	    "rocksdb_nif",
+	    "lru_resource",
+	    lru_destructor,
 	    resource_flags,
 	    0);
 
@@ -114,6 +122,10 @@ void writeoption_destructor(ErlNifEnv* env, void* _wopts) {
     opt_obj_resource *wopts = (opt_obj_resource*) _wopts;
     delete (rocksdb::WriteOptions*) wopts->object;
 }
+void lru_destructor(ErlNifEnv* env, void* _lru) {
+    lru_obj_resource *lru = (lru_obj_resource*) _lru;
+    delete (std::shared_ptr<rocksdb::Cache>*) lru->object;
+}
 
 /* change ttl value for open db */
 ERL_NIF_TERM set_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -158,8 +170,10 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     ERL_NIF_TERM kvl;
     rocksdb::Status status;
     int threads;
+    lru_obj_resource* lru;
+    std::shared_ptr<rocksdb::Cache>* lru_cache;
 
-    if (argc < 3 || argc > 4) {
+    if (argc < 3 || argc > 5) {
 	return enif_make_badarg(env);
     }
 
@@ -179,13 +193,22 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     kvl = argv[2];
      
     /* forth argument can be number of threads */
-    if (argc == 4) {
+    if (argc >= 4) {
 	if (!enif_get_int(env, argv[3], &threads)) {
 	    return enif_make_tuple2(env, atom_error, enif_make_atom(env, "threads"));
 	}
-    }
-    else {
+    } else {
       threads = 8;
+    }
+
+    /* fifth argument can be shared/preallocated LRU cache if to be used for the tables */
+    if (argc >= 5) {
+	if(!enif_get_resource(env, argv[4], lruResource, (void **)&lru)) {
+	    return enif_make_tuple2(env, atom_error, enif_make_atom(env, "lru_cache"));
+	}
+	lru_cache = (std::shared_ptr<rocksdb::Cache>*) lru->object;
+    } else {
+	lru_cache = nullptr;
     }
 
     db_obj_resource* rdb = (db_obj_resource *) enif_alloc_resource(dbResource, sizeof(db_obj_resource));
@@ -200,7 +223,7 @@ ERL_NIF_TERM open_db_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     rdb->cfi_options = new rocksdb::ColumnFamilyOptions();
     rdb->cfr_options = new rocksdb::ColumnFamilyOptions();
 
-    if ( fix_cf_options(env, kvl, rdb, options, status, threads) != 0 ) {
+    if ( fix_cf_options(env, kvl, rdb, options, status, threads, lru_cache) != 0 ) {
 	enif_release_resource(rdb);
 	if(!status.ok()) {
 	    ERL_NIF_TERM status_tuple = make_status_tuple(env, &status);
@@ -620,6 +643,60 @@ ERL_NIF_TERM delete_indices_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
 }
 
 /*Resource making*/
+ERL_NIF_TERM lru_cache_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    lru_obj_resource *opts;
+    int32_t size;
+    ERL_NIF_TERM term;
+
+    // pointer to shared_ptr
+    std::shared_ptr<rocksdb::Cache>* lru_cache;
+
+    if (argc != 1) {
+	return enif_make_badarg(env);
+    }
+
+    if (!enif_get_int(env, argv[0], &size)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "size"));
+    }
+
+    // memory freed by erlang destructor for the resource
+    // and if rocksdb doesn't have any referece to the cache
+    // the cache is destructed (shared_ptr ref count)
+    lru_cache = new std::shared_ptr<rocksdb::Cache>;
+
+    // size is MB convert to bytes
+    size *= 1024 * 1024;
+    *lru_cache = rocksdb::NewLRUCache(size);
+    opts = (lru_obj_resource*) enif_alloc_resource(lruResource, sizeof(lru_obj_resource));
+    opts->object = lru_cache;
+
+    term = enif_make_resource(env, opts);
+    enif_release_resource(opts);
+
+    return enif_make_tuple2(env, atom_ok, term);
+}
+
+/* get shared_ptr reference count  */
+ERL_NIF_TERM get_lru_cache_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    lru_obj_resource *lru;
+    ERL_NIF_TERM count_term;
+
+    // pointer to shared_ptr
+    std::shared_ptr<rocksdb::Cache>* lru_cache;
+
+    if (argc != 1) {
+	return enif_make_badarg(env);
+    }
+
+    if(!enif_get_resource(env, argv[0], lruResource, (void **)&lru)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "lru_cache"));
+    }
+
+    lru_cache = (std::shared_ptr<rocksdb::Cache>*) lru->object;
+    count_term = enif_make_uint(env, (unsigned int) lru_cache->use_count());
+    return enif_make_tuple2(env, atom_ok, count_term);
+}
+
 ERL_NIF_TERM options_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     ERL_NIF_TERM term;
 
@@ -1509,6 +1586,7 @@ ERL_NIF_TERM memory_usage_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 ErlNifFunc nif_funcs[] = {
     {"open_db", 3, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"open_db", 4, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"open_db", 5, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"close_db", 1, close_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"get", 3, get_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"put", 5, put_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -1517,6 +1595,8 @@ ErlNifFunc nif_funcs[] = {
     {"index_get", 3, index_get_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"delete_indices", 2, delete_indices_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
+    {"lru_cache", 1, lru_cache_nif},
+    {"get_lru_cache", 1, get_lru_cache_nif},
     {"options", 1, options_nif},
     {"readoptions", 1, readoptions_nif},
     {"writeoptions", 1, writeoptions_nif},

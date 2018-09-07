@@ -112,7 +112,8 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 		   db_obj_resource* rdb,
 		   rocksdb::DBOptions* options,
 		   rocksdb::Status& status,
-		   int num_threads) {
+		   int num_threads,
+		   std::shared_ptr<rocksdb::Cache>* shared_lru) {
     unsigned int kvl_len;
     char temp[MAXPATHLEN];
 
@@ -183,7 +184,7 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 
 	}
 
-	if(strcmp(temp, "cache_size") == 0) {
+	if(strcmp(temp, "cache_size") == 0 && shared_lru == nullptr) {
 	    int cache_size; // cache size in MB
 
 	    if(!enif_get_int(env, tuple[1], &cache_size)) {
@@ -227,6 +228,26 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    rdb->cfr_options->write_buffer_size = write_buffer_size;
 	}
 	kvl = tail;
+    }
+
+    if (shared_lru != nullptr) {
+	    rocksdb::BlockBasedTableOptions bbto_d;
+	    bbto_d.no_block_cache = false;
+	    bbto_d.cache_index_and_filter_blocks = true;
+	    bbto_d.block_cache = *shared_lru;
+	    rdb->cfd_options->table_factory.reset(NewBlockBasedTableFactory(bbto_d));
+
+	    rocksdb::BlockBasedTableOptions bbto_i;
+	    bbto_i.no_block_cache = false;
+	    bbto_i.cache_index_and_filter_blocks = true;
+	    bbto_i.block_cache = *shared_lru;
+	    rdb->cfi_options->table_factory.reset(NewBlockBasedTableFactory(bbto_i));
+
+	    rocksdb::BlockBasedTableOptions bbto_r;
+	    bbto_r.no_block_cache = false;
+	    bbto_r.cache_index_and_filter_blocks = true;
+	    bbto_r.block_cache = *shared_lru;
+	    rdb->cfr_options->table_factory.reset(NewBlockBasedTableFactory(bbto_r));
     }
 
     rdb->cfi_options->max_write_buffer_number=5;
@@ -319,7 +340,6 @@ int init_writeoptions(ErlNifEnv* env,
     // 4. no_slowdown
     */
 
-    //Set sync
     temp = get_bool(env, writeoptions_array[1]);
     if (temp == -1) {
 	return -1;
@@ -747,21 +767,21 @@ ERL_NIF_TERM rocksdb_memory_usage(ErlNifEnv* env, db_obj_resource* rdb) {
 
     //Cache Memory Data
     bbtfd =
-	dynamic_cast<const rocksdb::BlockBasedTableFactory *>
+	static_cast<const rocksdb::BlockBasedTableFactory *>
 	    (rdb->cfd_options->table_factory.get());
     const auto bbt_optsd = bbtfd->table_options();
     mem_cached = bbt_optsd.block_cache->GetUsage();
 
     //Cache Memory Index
     bbtfi =
-	dynamic_cast<const rocksdb::BlockBasedTableFactory *>
+	static_cast<const rocksdb::BlockBasedTableFactory *>
 	    (rdb->cfi_options->table_factory.get());
     const auto bbt_optsi = bbtfi->table_options();
     mem_cached = bbt_optsi.block_cache->GetUsage();
 
     //Cache Memory Reverse Index
     bbtfr =
-	dynamic_cast<const rocksdb::BlockBasedTableFactory *>
+	static_cast<const rocksdb::BlockBasedTableFactory *>
 	    (rdb->cfr_options->table_factory.get());
     const auto bbt_optsr = bbtfr->table_options();
     mem_cached = bbt_optsr.block_cache->GetUsage();

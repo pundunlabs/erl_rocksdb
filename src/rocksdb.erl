@@ -2,6 +2,7 @@
 
 -export([open_db/3,
 	 open_db/4,
+	 open_db/5,
 	 close_db/1,
          get/3,
          put/5,
@@ -12,7 +13,9 @@
 
 -export([options/1,
 	 readoptions/1,
-         writeoptions/1]).
+	 writeoptions/1,
+	 lru_cache/1,
+	 get_lru_cache/1]).
 
 -export([destroy_db/2,
          repair_db/2]).
@@ -62,6 +65,7 @@
 -type start() :: key().
 -type limit() :: key().
 -type range() :: {start(), limit()}.
+-type lru_cache() :: binary().
 
 -export([init/0]).
 
@@ -101,9 +105,21 @@ open_db(_options, _Path, _CFOpts)->
 %% Returns {ok, DB} where DB is an NIF Resource, or {error, Reason}.
 %% @end
 %%--------------------------------------------------------------------
--spec open_db(Options :: options(), Path :: string(), CFOpts :: [term()], Threads :: integer()) ->
+-spec open_db(Options :: options(), Path :: string(), CFOpts :: [term()],
+	      Threads :: integer()) ->
     {ok, DB :: db()} | {error, Reason :: any()}.
 open_db(_options, _Path, _CFOpts, _Threads)->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Open a rocksdb database with provided Options on provided Path.
+%% Returns {ok, DB} where DB is an NIF Resource, or {error, Reason}.
+%% @end
+%%--------------------------------------------------------------------
+-spec open_db(Options :: options(), Path :: string(), CFOpts :: [term()],
+	      Threads :: integer(), LruCache :: lru_cache()) ->
+    {ok, DB :: db()} | {error, Reason :: any()}.
+open_db(_options, _Path, _CFOpts, _Threads, _LruCache)->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
@@ -181,6 +197,18 @@ index_get(_db, _readoptions, _Key)->
 -spec delete_indices(DB :: db(), Cids :: [binary()]) ->
     {ok, value()} | {error, Reason :: any()}.
 delete_indices(_db, _cids)->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Make and get a NIF resource constructed by the rocksdb::NewLRU().
+%% This resource can be used in open_db/2 function .
+%% @end
+%%--------------------------------------------------------------------
+-spec lru_cache(Size :: integer()) ->
+    {ok, lru_cache()} | {error, Reason :: any()}.
+lru_cache(_size) ->
+    erlang:nif_error(nif_library_not_loaded).
+get_lru_cache(_lru) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
