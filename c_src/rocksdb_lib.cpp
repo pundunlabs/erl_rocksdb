@@ -231,17 +231,17 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	if(strcmp(temp, "fifo_ttl") == 0) {
 	    const ERL_NIF_TERM* fifo_tuple;
 	    int fifo_arity;
-	    int ttl; // time to live in seconds
-	    int size; // max table files size
+	    uint64_t ttl; // time to live in seconds
+	    uint64_t size; // max table files size
 	    if(!enif_get_tuple(env, tuple[1], &fifo_arity, &fifo_tuple)) {
 		return -1;
 	    }
 
-	    if(!enif_get_int(env, fifo_tuple[0], &ttl)) {
+	    if(!enif_get_uint64(env, fifo_tuple[0], (unsigned long*) &ttl)) {
 		return -1;
 	    }
 
-	    if(!enif_get_int(env, fifo_tuple[1], &size)) {
+	    if(!enif_get_uint64(env, fifo_tuple[1], (unsigned long*) &size)) {
 		return -1;
 	    }
 
