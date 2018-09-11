@@ -645,7 +645,7 @@ ERL_NIF_TERM delete_indices_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
 /*Resource making*/
 ERL_NIF_TERM lru_cache_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     lru_obj_resource *opts;
-    int32_t size;
+    uint64_t size;
     ERL_NIF_TERM term;
 
     // pointer to shared_ptr
@@ -655,7 +655,7 @@ ERL_NIF_TERM lru_cache_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) 
 	return enif_make_badarg(env);
     }
 
-    if (!enif_get_int(env, argv[0], &size)) {
+    if (!enif_get_uint64(env, argv[0], (unsigned long *)&size)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "size"));
     }
 
