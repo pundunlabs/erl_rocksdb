@@ -1,7 +1,6 @@
 #include "rocksdb_nif.h"
 #include "rocksdb/convenience.h"
-#include "pundun_ttl.h"
-#include "pundun_ttl_impl.h"
+#include "table/block_based_table_factory.h"
 
 namespace {
     /* atoms */
@@ -21,6 +20,9 @@ namespace {
     ERL_NIF_TERM atom_expired;
     ERL_NIF_TERM atom_try_again;
     ERL_NIF_TERM atom_no_space;
+    ERL_NIF_TERM atom_mem_total;
+    ERL_NIF_TERM atom_mem_unflushed;
+    ERL_NIF_TERM atom_mem_cached;
 
     int get_bool(ErlNifEnv* env, ERL_NIF_TERM term) {
 	char buf[6];
@@ -53,6 +55,9 @@ void init_lib_atoms(ErlNifEnv* env) {
     atom_expired = enif_make_atom(env, "expired");
     atom_try_again = enif_make_atom(env, "try_again");
     atom_no_space = enif_make_atom(env, "no_space");
+    atom_mem_total = enif_make_atom(env, "mem_total");
+    atom_mem_unflushed = enif_make_atom(env, "mem_unflushed");
+    atom_mem_cached = enif_make_atom(env, "mem_cached");
 }
 
 void delete_db(db_obj_resource* rdb) {
@@ -70,8 +75,8 @@ void delete_db(db_obj_resource* rdb) {
     delete rdb->link_set;
 
     if(rdb->type == DB_WITH_TTL && rdb->db_open) {
-	rocksdb::PundunTTL *db;
-	db = (rocksdb::PundunTTL*) rdb->object;
+	rocksdb::DBWithTTL *db;
+	db = (rocksdb::DBWithTTL*) rdb->object;
 	delete db;
     }
     else if(rdb->db_open) {
@@ -107,7 +112,8 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 		   db_obj_resource* rdb,
 		   rocksdb::DBOptions* options,
 		   rocksdb::Status& status,
-		   int num_threads) {
+		   int num_threads,
+		   std::shared_ptr<rocksdb::Cache>* shared_lru) {
     unsigned int kvl_len;
     char temp[MAXPATHLEN];
 
@@ -177,8 +183,98 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    }
 
 	}
+
+	if(strcmp(temp, "cache_size") == 0 && shared_lru == nullptr) {
+	    int cache_size; // cache size in MB
+
+	    if(!enif_get_int(env, tuple[1], &cache_size)) {
+		return -1;
+	    }
+
+	    // convert to bytes
+	    cache_size *= 1024*1024;
+
+	    rocksdb::BlockBasedTableOptions bbto_d;
+	    bbto_d.no_block_cache = false;
+	    bbto_d.cache_index_and_filter_blocks = true;
+	    bbto_d.block_cache = rocksdb::NewLRUCache(cache_size);
+	    rdb->cfd_options->table_factory.reset(NewBlockBasedTableFactory(bbto_d));
+
+	    rocksdb::BlockBasedTableOptions bbto_i;
+	    bbto_i.no_block_cache = false;
+	    bbto_i.cache_index_and_filter_blocks = true;
+	    bbto_i.block_cache = rocksdb::NewLRUCache(cache_size);
+	    rdb->cfi_options->table_factory.reset(NewBlockBasedTableFactory(bbto_i));
+
+	    rocksdb::BlockBasedTableOptions bbto_r;
+	    bbto_r.no_block_cache = false;
+	    bbto_r.cache_index_and_filter_blocks = true;
+	    bbto_r.block_cache = rocksdb::NewLRUCache(cache_size);
+	    rdb->cfr_options->table_factory.reset(NewBlockBasedTableFactory(bbto_r));
+
+	}
+
+	if(strcmp(temp, "write_buffer_size") == 0) {
+	    int write_buffer_size; // write buffer size in MB
+
+	    if(!enif_get_int(env, tuple[1], &write_buffer_size)) {
+		return -1;
+	    }
+	    // convert to bytes
+	    write_buffer_size *= 1024*1024;
+
+	    rdb->cfd_options->write_buffer_size = write_buffer_size;
+	    rdb->cfi_options->write_buffer_size = write_buffer_size;
+	    rdb->cfr_options->write_buffer_size = write_buffer_size;
+	}
+
+	if(strcmp(temp, "fifo_ttl") == 0) {
+	    const ERL_NIF_TERM* fifo_tuple;
+	    int fifo_arity;
+	    uint64_t ttl; // time to live in seconds
+	    uint64_t size; // max table files size
+	    if(!enif_get_tuple(env, tuple[1], &fifo_arity, &fifo_tuple)) {
+		return -1;
+	    }
+
+	    if(!enif_get_uint64(env, fifo_tuple[0], (unsigned long*) &ttl)) {
+		return -1;
+	    }
+
+	    if(!enif_get_uint64(env, fifo_tuple[1], (unsigned long*) &size)) {
+		return -1;
+	    }
+
+	    // convert to bytes, input in MB
+	    size *= 1024*1024;
+	    rdb->cfd_options->compaction_style = rocksdb::kCompactionStyleFIFO;
+	    rdb->cfd_options->compaction_options_fifo.max_table_files_size = size;
+	    rdb->cfd_options->compaction_options_fifo.allow_compaction = true;
+	    rdb->cfd_options->compaction_options_fifo.ttl = ttl;
+	}
 	kvl = tail;
     }
+
+    if (shared_lru != nullptr) {
+	    rocksdb::BlockBasedTableOptions bbto_d;
+	    bbto_d.no_block_cache = false;
+	    bbto_d.cache_index_and_filter_blocks = true;
+	    bbto_d.block_cache = *shared_lru;
+	    rdb->cfd_options->table_factory.reset(NewBlockBasedTableFactory(bbto_d));
+
+	    rocksdb::BlockBasedTableOptions bbto_i;
+	    bbto_i.no_block_cache = false;
+	    bbto_i.cache_index_and_filter_blocks = true;
+	    bbto_i.block_cache = *shared_lru;
+	    rdb->cfi_options->table_factory.reset(NewBlockBasedTableFactory(bbto_i));
+
+	    rocksdb::BlockBasedTableOptions bbto_r;
+	    bbto_r.no_block_cache = false;
+	    bbto_r.cache_index_and_filter_blocks = true;
+	    bbto_r.block_cache = *shared_lru;
+	    rdb->cfr_options->table_factory.reset(NewBlockBasedTableFactory(bbto_r));
+    }
+
     rdb->cfi_options->max_write_buffer_number=5;
     rdb->cfr_options->max_write_buffer_number=5;
     rdb->cfi_options->min_write_buffer_number_to_merge=2;
@@ -190,6 +286,9 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 
     options->env->SetBackgroundThreads(num_threads);
     options->max_background_jobs = num_threads;
+
+    options->skip_stats_update_on_db_open=true;
+
     //options->level0_stop_writes_trigger=36
     //options->level0_slowdown_writes_trigger=20
     return 0;
@@ -266,7 +365,6 @@ int init_writeoptions(ErlNifEnv* env,
     // 4. no_slowdown
     */
 
-    //Set sync
     temp = get_bool(env, writeoptions_array[1]);
     if (temp == -1) {
 	return -1;
@@ -314,10 +412,10 @@ void open_db(rocksdb::DBOptions* options,
     column_families.push_back(rocksdb::ColumnFamilyDescriptor("index", *(rdb->cfi_options)));
     column_families.push_back(rocksdb::ColumnFamilyDescriptor("reverse_index", *(rdb->cfr_options)));
     if (rdb->type == DB_WITH_TTL) {
-	rocksdb::PundunTTL* db;
+	rocksdb::DBWithTTL* db;
 	bool read_only = false;
 	std::vector<int32_t> ttl_values (3, rdb->ttl);
-	*status = rocksdb::PundunTTL::Open(*options, path_string,
+	*status = rocksdb::DBWithTTL::Open(*options, path_string,
 					   column_families, rdb->handles, &db,
 					   ttl_values, read_only);
 	rdb->object = db;
@@ -337,7 +435,7 @@ rocksdb::Status Get(db_obj_resource* rdb,
 		    rocksdb::PinnableSlice* value) {
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
-	status = static_cast<rocksdb::PundunTTL*>(rdb->object)->Get(*readoptions, rdb->handles->at(cf), *key, value);
+	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Get(*readoptions, rdb->handles->at(cf), *key, value);
     } else {
 	status = static_cast<rocksdb::DB*>(rdb->object)->Get(*readoptions, rdb->handles->at(cf), *key, value);
     }
@@ -350,7 +448,7 @@ rocksdb::Status Put(db_obj_resource* rdb,
 		    rocksdb::Slice* value) {
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
-	status = static_cast<rocksdb::PundunTTL*>(rdb->object)->Put(*writeoptions, *key, *value);
+	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Put(*writeoptions, *key, *value);
     } else {
 	status = static_cast<rocksdb::DB*>(rdb->object)->Put(*writeoptions, *key, *value);
     }
@@ -382,7 +480,7 @@ rocksdb::Status PutTerms(db_obj_resource* rdb,
     }
     //Apply batch according to db type
     if (rdb->type == DB_WITH_TTL) {
-	rocksdb::PundunTTL* db = static_cast<rocksdb::PundunTTL*>(rdb->object);
+	rocksdb::DBWithTTL* db = static_cast<rocksdb::DBWithTTL*>(rdb->object);
 	status = db->Write(*writeoptions, &batch);
     } else {
 	rocksdb::DB* db = static_cast<rocksdb::DB*>(rdb->object);
@@ -396,7 +494,7 @@ rocksdb::Status Write(db_obj_resource* rdb,
 		      rocksdb::WriteBatch* batch) {
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
-	status = static_cast<rocksdb::PundunTTL*>(rdb->object)->Write(*writeoptions, batch);
+	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Write(*writeoptions, batch);
     } else {
 	status = static_cast<rocksdb::DB*>(rdb->object)->Write(*writeoptions, batch);
     }
@@ -408,7 +506,7 @@ rocksdb::Status Delete(db_obj_resource* rdb,
 		       rocksdb::Slice* key) {
     rocksdb::Status status;
     if (rdb->type == DB_WITH_TTL) {
-	status = static_cast<rocksdb::PundunTTL*>(rdb->object)->Delete(*writeoptions, *key);
+	status = static_cast<rocksdb::DBWithTTL*>(rdb->object)->Delete(*writeoptions, *key);
     } else {
 	status = static_cast<rocksdb::DB*>(rdb->object)->Delete(*writeoptions, *key);
     }
@@ -426,7 +524,6 @@ rocksdb::Status DeleteTerms(db_obj_resource* rdb,
     //Delete value
     batch.Delete(rdb->handles->at(0), *key);
     //Delete index history
-    std::vector<std::pair<std::string, rocksdb::PinnableSlice>> key_index;
     for (auto it = td.index_.begin(); it != td.index_.end(); ++it) {
 	rocksdb::Slice key2term(*it);
 	rocksdb::PinnableSlice value;
@@ -444,7 +541,7 @@ rocksdb::Status DeleteTerms(db_obj_resource* rdb,
     }
     //Apply batch according to db type
     if (rdb->type == DB_WITH_TTL) {
-	rocksdb::PundunTTL* db = static_cast<rocksdb::PundunTTL*>(rdb->object);
+	rocksdb::DBWithTTL* db = static_cast<rocksdb::DBWithTTL*>(rdb->object);
 	status = db->Write(*writeoptions, &batch);
     } else {
 	rocksdb::DB* db = static_cast<rocksdb::DB*>(rdb->object);
@@ -458,7 +555,7 @@ void GetApproximateSizes(db_obj_resource* rdb,
 			 unsigned int ranges_size,
 			 uint64_t* size) {
     if (rdb->type == DB_WITH_TTL) {
-	static_cast<rocksdb::PundunTTL*>(rdb->object)->GetApproximateSizes(ranges, ranges_size, size);
+	static_cast<rocksdb::DBWithTTL*>(rdb->object)->GetApproximateSizes(ranges, ranges_size, size);
     } else {
 	static_cast<rocksdb::DB*>(rdb->object)->GetApproximateSizes(ranges, ranges_size, size);
     }
@@ -468,7 +565,7 @@ rocksdb::Iterator* NewIterator(db_obj_resource* rdb,
 			       rocksdb::ReadOptions* readoptions) {
     rocksdb::Iterator* it;
     if (rdb->type == DB_WITH_TTL) {
-	it = static_cast<rocksdb::PundunTTL*>(rdb->object)->NewIterator(*readoptions);
+	it = static_cast<rocksdb::DBWithTTL*>(rdb->object)->NewIterator(*readoptions);
     } else {
 	it = static_cast<rocksdb::DB*>(rdb->object)->NewIterator(*readoptions);
     }
@@ -477,7 +574,7 @@ rocksdb::Iterator* NewIterator(db_obj_resource* rdb,
 
 void CompactDB(db_obj_resource* rdb) {
     if (rdb->type == DB_WITH_TTL) {
-	static_cast<rocksdb::PundunTTL*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), rdb->handles->at(0), nullptr, nullptr);
+	static_cast<rocksdb::DBWithTTL*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), rdb->handles->at(0), nullptr, nullptr);
     } else {
 	static_cast<rocksdb::DB*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), rdb->handles->at(0), nullptr, nullptr);
     }
@@ -485,7 +582,7 @@ void CompactDB(db_obj_resource* rdb) {
 
 void CompactIndex(db_obj_resource* rdb) {
     if (rdb->type == DB_WITH_TTL) {
-	static_cast<rocksdb::PundunTTL*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), rdb->handles->at(1), nullptr, nullptr);
+	static_cast<rocksdb::DBWithTTL*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), rdb->handles->at(1), nullptr, nullptr);
     } else {
 	static_cast<rocksdb::DB*>(rdb->object)->CompactRange(rocksdb::CompactRangeOptions(), rdb->handles->at(1), nullptr, nullptr);
     }
@@ -501,7 +598,7 @@ rocksdb::Status BackupDB(db_obj_resource* rdb,
 
     if(status.ok()) {
 	if (rdb->type == DB_WITH_TTL) {
-	    status = backup_engine->CreateNewBackup(static_cast<rocksdb::PundunTTL*>(rdb->object));
+	    status = backup_engine->CreateNewBackup(static_cast<rocksdb::DBWithTTL*>(rdb->object));
 	} else {
 	    status = backup_engine->CreateNewBackup(static_cast<rocksdb::DB*>(rdb->object));
 	}
@@ -563,7 +660,7 @@ rocksdb::Status CreateCheckpoint(db_obj_resource* rdb,
 
     rocksdb::Checkpoint* checkpoint;
     if (rdb->type == DB_WITH_TTL) {
-	status = rocksdb::Checkpoint::Create(static_cast<rocksdb::PundunTTL*>(rdb->object), &checkpoint);
+	status = rocksdb::Checkpoint::Create(static_cast<rocksdb::DBWithTTL*>(rdb->object), &checkpoint);
     } else {
 	status = rocksdb::Checkpoint::Create(static_cast<rocksdb::DB*>(rdb->object), &checkpoint);
     }
@@ -669,8 +766,58 @@ void SetTtl(db_obj_resource* rdb, int32_t ttl) {
     if (rdb->type == DB_WITH_TTL) {
 	if( rdb->handles ) {
 	    for( auto h : *(rdb->handles) ) { 
-		static_cast<rocksdb::PundunTTLImpl*>(rdb->object)->SetTtl(h, ttl);
+		static_cast<rocksdb::DBWithTTLImpl*>(rdb->object)->SetTtl(h, ttl);
 	    }
 	}
     }
+}
+
+ERL_NIF_TERM rocksdb_memory_usage(ErlNifEnv* env, db_obj_resource* rdb) {
+    rocksdb::DB* db;
+    uint64_t mem_total = 0;
+    uint64_t mem_unflushed = 0;
+    uint64_t mem_cached = 0;
+    const rocksdb::BlockBasedTableFactory* bbtfd;
+    const rocksdb::BlockBasedTableFactory* bbtfi;
+    const rocksdb::BlockBasedTableFactory* bbtfr;
+
+    db = static_cast<rocksdb::DB*>(rdb->object);
+
+    //MemTable Total
+    db->GetAggregatedIntProperty(rocksdb::DB::Properties::kSizeAllMemTables,
+                                 &mem_total);
+    //MemTable UnFlushed Mem
+    db->GetAggregatedIntProperty(rocksdb::DB::Properties::kCurSizeAllMemTables,
+				 &mem_unflushed);
+
+    //Cache Memory Data
+    bbtfd =
+	static_cast<const rocksdb::BlockBasedTableFactory *>
+	    (rdb->cfd_options->table_factory.get());
+    const auto bbt_optsd = bbtfd->table_options();
+    mem_cached = bbt_optsd.block_cache->GetUsage();
+
+    //Cache Memory Index
+    bbtfi =
+	static_cast<const rocksdb::BlockBasedTableFactory *>
+	    (rdb->cfi_options->table_factory.get());
+    const auto bbt_optsi = bbtfi->table_options();
+    mem_cached = bbt_optsi.block_cache->GetUsage();
+
+    //Cache Memory Reverse Index
+    bbtfr =
+	static_cast<const rocksdb::BlockBasedTableFactory *>
+	    (rdb->cfr_options->table_factory.get());
+    const auto bbt_optsr = bbtfr->table_options();
+    mem_cached = bbt_optsr.block_cache->GetUsage();
+
+    return enif_make_list3(env,
+		enif_make_tuple2(env, atom_mem_total,
+			enif_make_int64(env, (ErlNifSInt64) mem_total)),
+
+		enif_make_tuple2(env, atom_mem_unflushed,
+			enif_make_int64(env, (ErlNifSInt64) mem_unflushed)),
+
+		enif_make_tuple2(env, atom_mem_cached,
+			enif_make_int64(env, (ErlNifSInt64) mem_cached)));
 }

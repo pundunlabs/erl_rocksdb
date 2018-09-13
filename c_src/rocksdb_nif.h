@@ -51,6 +51,11 @@ typedef struct _it_obj_resource {
   void *object;
 } it_obj_resource;
 
+typedef struct _lru_obj_resource {
+  void *object;
+} lru_obj_resource;
+
+
 extern void init_lib_atoms(ErlNifEnv* env);
 
 extern void delete_db(db_obj_resource* rdb);
@@ -66,7 +71,8 @@ extern int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 			  db_obj_resource* rdb,
 			  rocksdb::DBOptions* options,
 			  rocksdb::Status &status,
-			  int num_threads);
+			  int num_threads,
+			  std::shared_ptr<rocksdb::Cache>* shared_lru);
 
 extern int init_readoptions(ErlNifEnv* env,
 			    const ERL_NIF_TERM* readoptions_array,
@@ -142,5 +148,7 @@ extern int parse_int_pairs(ErlNifEnv* env,
 			    vector< pair<int,int> >* list);
 
 void SetTtl(db_obj_resource *rdb, int32_t ttl);
+
+extern ERL_NIF_TERM rocksdb_memory_usage(ErlNifEnv* env, db_obj_resource* rdb);
 
 #endif /*ROCKSDB_NIF_H*/

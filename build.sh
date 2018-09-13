@@ -1,6 +1,6 @@
 #!/bin/sh
 ROCKSDB_DIR=c_src/rocksdb
-ROCKSDB_TAG=v5.6.1
+ROCKSDB_TAG=v5.14.3
 
 if [ ! -d ${ROCKSDB_DIR} ]; then
     # Control will enter here if rocksdb doesn't exist.
@@ -21,10 +21,13 @@ if [ -z "$(echo "test text" | openssl sha256 2>/dev/null)" ]; then
     done
 fi
 
+# disable BZIP since building the static lib for support got harder
+# when bzip.org got discontinued
+export ROCKSDB_DISABLE_BZIP=1
+
 (cd ${ROCKSDB_DIR} && \
     make -j 4 libzstd.a && \
     make -j 4 libsnappy.a && \
-    make -j 4 libbz2.a && \
     make -j 4 libz.a && \
     make -j 4 liblz4.a && \
     make -j 4 static_lib)
