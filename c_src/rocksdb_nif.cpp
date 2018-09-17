@@ -88,12 +88,13 @@ int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info){
     return 0;
 }
 
-int reload(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info){
+int upgrade(ErlNifEnv* env, void** priv_data,  void** old_priv_data,ERL_NIF_TERM load_info){
+    *priv_data = *old_priv_data;
+    load(env, priv_data, load_info);
     return 0;
 }
 
-int upgrade(ErlNifEnv* env, void** priv_data,  void** old_priv_data,ERL_NIF_TERM load_info){
-    return 0;
+void unload(ErlNifEnv* env, void* priv_data){
 }
 
 void iterator_destructor(ErlNifEnv* env, void* _it) {
@@ -1634,4 +1635,4 @@ ErlNifFunc nif_funcs[] = {
 };
 } /* anonymouse namespace ends */
 
-ERL_NIF_INIT(rocksdb, nif_funcs, load, reload, upgrade, NULL)
+ERL_NIF_INIT(rocksdb, nif_funcs, load, NULL, upgrade, unload)
