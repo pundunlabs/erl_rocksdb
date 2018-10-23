@@ -27,6 +27,7 @@ ERL_NIF_TERM atom_ok;
 ERL_NIF_TERM atom_error;
 ERL_NIF_TERM atom_invalid;
 ERL_NIF_TERM atom_key_conflict;
+ERL_NIF_TERM atom_complete;
 
 
 void db_destructor(ErlNifEnv* env, void *db);
@@ -82,6 +83,7 @@ int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info){
     atom_error	 = enif_make_atom(env, "error");
     atom_invalid = enif_make_atom(env, "invalid");
     atom_key_conflict = enif_make_atom(env, "key_conflict");
+    atom_complete = enif_make_atom(env, "complete");
 
     init_lib_atoms(env);
 
@@ -1048,7 +1050,7 @@ ERL_NIF_TERM read_range_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 	cont = enif_make_binary(env, &binkey);
     }
     else {
-	cont = enif_make_atom(env, "complete");
+	cont = atom_complete;
     }
 
     delete it;
@@ -1124,6 +1126,103 @@ ERL_NIF_TERM read_range_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     delete it;
     kvl = enif_make_list_from_array(env, &kvl_vector[0], kvl_vector.size());
     return enif_make_tuple2(env, atom_ok, kvl);
+}
+
+ERL_NIF_TERM
+read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    opt_obj_resource *ropts;
+    rocksdb::ReadOptions *readoptions;
+    db_obj_resource *rdb;
+
+    ErlNifBinary prefixkey;
+    ErlNifBinary binkey;
+
+    int max_keys;
+
+    /*get db_ptr resource*/
+    if (argc != 5 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+
+    /*get readoptions resource*/
+    if (!enif_get_resource(env, argv[1], readoptionResource, (void **) &ropts)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "readoptions"));
+    }
+    readoptions = (rocksdb::ReadOptions *) ropts->object;
+
+    /*get prefix key*/
+    if (!enif_inspect_binary(env, argv[2], &prefixkey)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "prefix_key"));
+    }
+
+    /*get range start key*/
+    if (!enif_inspect_binary(env, argv[3], &binkey)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "start_key"));
+    }
+
+    /*get limit integer*/
+    if (!enif_get_int(env, argv[4], &max_keys)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "limit"));
+    }
+
+    rocksdb::Slice start((const char*)binkey.data, (size_t) binkey.size);
+
+    /*Create rocksdb iterator*/
+    rocksdb::Iterator* it = NewIterator(rdb, readoptions);
+
+    /*Create empty list to store key/value pairs*/
+    ERL_NIF_TERM kvl;
+    /* Continuation or atom complete */
+    ERL_NIF_TERM cont;
+
+    /*Declare key and value erlang resources*/
+    ErlNifBinary binvalue;
+    ERL_NIF_TERM key_term;
+    ERL_NIF_TERM value_term;
+
+    /*declare vector to keep key/value pairs*/
+    vector<ERL_NIF_TERM> kvl_vector;
+
+    /*Iterate through start to limit*/
+    int i = 0;
+    for (it->Seek(start);
+	 it->Valid() && i < max_keys;
+	 it->Next()) {
+
+	/* stop if key is not prefixed */
+	if (!memcmp(it->key().data(), prefixkey.data, min(it->key().size(), prefixkey.size))) {
+	    // no more data to red
+	    i = -1;
+	    break;
+	}
+
+	/*Construct key_term*/
+	enif_alloc_binary(it->key().size(), &binkey);
+	memcpy(binkey.data, it->key().data(), it->key().size());
+	key_term = enif_make_binary(env, &binkey);
+	/*Construct value_term*/
+	enif_alloc_binary(it->value().size(), &binvalue);
+	memcpy(binvalue.data, it->value().data(), it->value().size());
+	value_term = enif_make_binary(env, &binvalue);
+
+	kvl_vector.push_back(enif_make_tuple2(env, key_term, value_term));
+	i++;
+    }
+
+    if ( i == max_keys && it->Valid() &&
+	 memcmp(it->key().data(), prefixkey.data, min(it->key().size(), prefixkey.size)) ) {
+	/*Construct key_term*/
+	enif_alloc_binary(it->key().size(), &binkey);
+	memcpy(binkey.data, it->key().data(), it->key().size());
+	cont = enif_make_binary(env, &binkey);
+    }
+    else {
+	cont = atom_complete;
+    }
+
+    delete it;
+    kvl = enif_make_list_from_array(env, &kvl_vector[0], kvl_vector.size());
+    return enif_make_tuple3(env, atom_ok, kvl, cont);
 }
 
 ERL_NIF_TERM iterator_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -1571,10 +1670,6 @@ ERL_NIF_TERM create_checkpoint_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
 /* get memory usage*/
 ERL_NIF_TERM memory_usage_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     db_obj_resource *rdb;
-    rocksdb::DB* db;
-    uint64_t mem_total = 0;
-    uint64_t mem_unflushed = 0;
-    uint64_t mem_cached = 0;
 
     /* get db_ptr resource */
     if (argc != 1 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
@@ -1609,6 +1704,7 @@ ErlNifFunc nif_funcs[] = {
     {"approximate_size", 2, approximate_size_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"read_range", 5, read_range_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"read_range_n", 4, read_range_n_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"read_range_prefix_n", 5, read_range_prefix_n_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
     {"iterator", 2, iterator_nif},
     {"delete_iterator", 1, delete_iterator_nif},
