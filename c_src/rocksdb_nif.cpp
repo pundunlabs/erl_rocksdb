@@ -96,9 +96,6 @@ int upgrade(ErlNifEnv* env, void** priv_data,  void** old_priv_data,ERL_NIF_TERM
     return 0;
 }
 
-void unload(ErlNifEnv* env, void* priv_data){
-}
-
 void iterator_destructor(ErlNifEnv* env, void* _it) {
     it_obj_resource *rit = (it_obj_resource*) _it;
     if (rit->allocated){
@@ -1731,4 +1728,4 @@ ErlNifFunc nif_funcs[] = {
 };
 } /* anonymouse namespace ends */
 
-ERL_NIF_INIT(rocksdb, nif_funcs, load, NULL, upgrade, unload)
+ERL_NIF_INIT(rocksdb, nif_funcs, load, NULL, upgrade, NULL)
