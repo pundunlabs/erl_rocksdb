@@ -1138,6 +1138,7 @@ read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     ErlNifBinary binkey;
 
     int max_keys;
+    int i = 0;
 
     /*get db_ptr resource*/
     if (argc != 5 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
@@ -1183,15 +1184,15 @@ read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     /*declare vector to keep key/value pairs*/
     vector<ERL_NIF_TERM> kvl_vector;
 
-    /*Iterate through start to limit*/
-    int i = 0;
+    /*Iterate from start to limit*/
     for (it->Seek(start);
 	 it->Valid() && i < max_keys;
 	 it->Next()) {
 
 	/* stop if key is not prefixed */
-	if (!memcmp(it->key().data(), prefixkey.data, min(it->key().size(), prefixkey.size))) {
-	    // no more data to red
+	/* prefixkey.size-1 since sext is ending the list with stopper which shouldn't be compared */
+	if (memcmp(prefixkey.data, it->key().data(), min(it->key().size(), prefixkey.size-1))) {
+	    // no more data to read
 	    i = -1;
 	    break;
 	}
@@ -1209,8 +1210,9 @@ read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 	i++;
     }
 
-    if ( i == max_keys && it->Valid() &&
-	 memcmp(it->key().data(), prefixkey.data, min(it->key().size(), prefixkey.size)) ) {
+    if (i == max_keys && it->Valid() &&
+	/* prefixkey.size-1 since sext is ending the list with stopper which shouldn't be compared */
+	!memcmp(it->key().data(), prefixkey.data, min(it->key().size(), prefixkey.size-1)) ) {
 	/*Construct key_term*/
 	enif_alloc_binary(it->key().size(), &binkey);
 	memcpy(binkey.data, it->key().data(), it->key().size());
