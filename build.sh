@@ -1,6 +1,6 @@
 #!/bin/sh
 ROCKSDB_DIR=c_src/rocksdb
-ROCKSDB_TAG=v5.14.3
+ROCKSDB_TAG=v5.17.2
 
 if [ ! -d ${ROCKSDB_DIR} ]; then
     # Control will enter here if rocksdb doesn't exist.

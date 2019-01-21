@@ -24,7 +24,8 @@
          approximate_size/2,
 	 read_range/5,
 	 read_range_n/4,
-	 read_range_prefix_n/5]).
+	 read_range_prefix_n/5,
+	 read_range_prefix_stop_n/6]).
 
 -export([iterator/2,
 	 delete_iterator/1,
@@ -325,6 +326,22 @@ read_range_n(_DB, _ReadOptions, _StartKey, _N) ->
 		N :: pos_integer()) ->
     {ok, [{key(), value()}]} | {error, Reason :: any()}.
 read_range_prefix_n(_DB, _ReadOptions, _PrefixKey, _StartKey, _N) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Read N number of Key/Value Pairs from start key
+%% all having same prefix Prefixkey.
+%% And stop if key is at stop key
+%% @end
+%%--------------------------------------------------------------------
+-spec read_range_prefix_stop_n(
+		DB :: db(), ReadOptions :: readoptions(),
+                PrefixKey :: key(), 
+		StartKey :: key(), StopKey :: key(),
+		N :: pos_integer()) ->
+    {ok, [{key(), value()}]} | {error, Reason :: any()}.
+read_range_prefix_stop_n(_DB, _ReadOptions, _PrefixKey,
+			 _StartKey, _StopKey, _N) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------

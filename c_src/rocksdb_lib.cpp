@@ -184,6 +184,18 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 
 	}
 
+	rocksdb::BlockBasedTableOptions bbto;
+
+	bbto.no_block_cache = false;
+	bbto.cache_index_and_filter_blocks = false;
+	bbto.pin_top_level_index_and_filter = true
+	bbto.index_type = rocksdb::BlockBasedTableOptions::IndexType::kTwoLevelIndexSearch;
+	bbto.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
+	bbto.partition_filters = true;
+	bbto.metadata_block_size = 4096;
+	bbto.cache_index_and_filter_blocks_with_high_priority = true;
+	bbto.block_size = 32 * 1024;
+
 	if(strcmp(temp, "cache_size") == 0 && shared_lru == nullptr) {
 	    int cache_size; // cache size in MB
 
@@ -193,25 +205,7 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 
 	    // convert to bytes
 	    cache_size *= 1024*1024;
-
-	    rocksdb::BlockBasedTableOptions bbto_d;
-	    bbto_d.no_block_cache = false;
-	    bbto_d.cache_index_and_filter_blocks = true;
-	    bbto_d.block_cache = rocksdb::NewLRUCache(cache_size);
-	    rdb->cfd_options->table_factory.reset(NewBlockBasedTableFactory(bbto_d));
-
-	    rocksdb::BlockBasedTableOptions bbto_i;
-	    bbto_i.no_block_cache = false;
-	    bbto_i.cache_index_and_filter_blocks = true;
-	    bbto_i.block_cache = rocksdb::NewLRUCache(cache_size);
-	    rdb->cfi_options->table_factory.reset(NewBlockBasedTableFactory(bbto_i));
-
-	    rocksdb::BlockBasedTableOptions bbto_r;
-	    bbto_r.no_block_cache = false;
-	    bbto_r.cache_index_and_filter_blocks = true;
-	    bbto_r.block_cache = rocksdb::NewLRUCache(cache_size);
-	    rdb->cfr_options->table_factory.reset(NewBlockBasedTableFactory(bbto_r));
-
+	    bbto.block_cache = rocksdb::NewLRUCache(cache_size);
 	}
 
 	if(strcmp(temp, "write_buffer_size") == 0) {
@@ -256,24 +250,13 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
     }
 
     if (shared_lru != nullptr) {
-	    rocksdb::BlockBasedTableOptions bbto_d;
-	    bbto_d.no_block_cache = false;
-	    bbto_d.cache_index_and_filter_blocks = true;
-	    bbto_d.block_cache = *shared_lru;
-	    rdb->cfd_options->table_factory.reset(NewBlockBasedTableFactory(bbto_d));
-
-	    rocksdb::BlockBasedTableOptions bbto_i;
-	    bbto_i.no_block_cache = false;
-	    bbto_i.cache_index_and_filter_blocks = true;
-	    bbto_i.block_cache = *shared_lru;
-	    rdb->cfi_options->table_factory.reset(NewBlockBasedTableFactory(bbto_i));
-
-	    rocksdb::BlockBasedTableOptions bbto_r;
-	    bbto_r.no_block_cache = false;
-	    bbto_r.cache_index_and_filter_blocks = true;
-	    bbto_r.block_cache = *shared_lru;
-	    rdb->cfr_options->table_factory.reset(NewBlockBasedTableFactory(bbto_r));
+	    bbto.block_cache = *shared_lru;
     }
+
+    /* set block based table options */
+    rdb->cfd_options->table_factory.reset(NewBlockBasedTableFactory(bbto));
+    rdb->cfi_options->table_factory.reset(NewBlockBasedTableFactory(bbto));
+    rdb->cfr_options->table_factory.reset(NewBlockBasedTableFactory(bbto));
 
     rdb->cfi_options->max_write_buffer_number=5;
     rdb->cfr_options->max_write_buffer_number=5;
