@@ -149,26 +149,6 @@ ERL_NIF_TERM set_ttl_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     return atom_ok;
 }
 
-#if 0
-/* change ttl value for open db */
-ERL_NIF_TERM set_max_table_files_size_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    db_obj_resource *rdb;
-    int64_t size;
-
-    /*get db_ptr resource*/
-    if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
-	return enif_make_badarg(env);
-    }
-
-    /*get ttl integer*/
-    if (!enif_get_int(env, argv[1], &ttl)) {
-	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "ttl"));
-    }
-    SetTtl(rdb, ttl);
-    return atom_ok;
-}
-#endif
-
 /*Test NIFs for experimenting*/
 ERL_NIF_TERM resource_test_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     ERL_NIF_TERM term;
@@ -1221,8 +1201,8 @@ read_range_prefix_stop_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 	 it->Next()) {
 
 	/* stop if key is not prefixed */
-	/* prefixkey.size-1 since sext is ending the list with stopper which shouldn't be compared */
-	if (memcmp(prefixkey.data, it->key().data(), min(it->key().size(), prefixkey.size-1))) {
+	/* prefixkey.data+5 since we are conding tuples 1 byte type; 4 bytes size */
+	if (memcmp(prefixkey.data+5, it->key().data()+5, min(it->key().size()-5, prefixkey.size-5))) {
 	    // no more data to read
 	    i = -1;
 	    break;
@@ -1242,8 +1222,8 @@ read_range_prefix_stop_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
     }
 
     if (i == max_keys && it->Valid() &&
-	/* prefixkey.size-1 since sext is ending the list with stopper which shouldn't be compared */
-	!memcmp(it->key().data(), prefixkey.data, min(it->key().size(), prefixkey.size-1)) ) {
+	/* prefixkey.size+5 since sext encoding tuples are 1 byte type; 4 bytes size */
+	!memcmp(it->key().data()+5, prefixkey.data+5, min(it->key().size()-5, prefixkey.size-5)) ) {
 	/*Construct key_term*/
 	enif_alloc_binary(it->key().size(), &binkey);
 	memcpy(binkey.data, it->key().data(), it->key().size());
@@ -1321,8 +1301,8 @@ read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 	 it->Next()) {
 
 	/* stop if key is not prefixed */
-	/* prefixkey.size-1 since sext is ending the list with stopper which shouldn't be compared */
-	if (memcmp(prefixkey.data, it->key().data(), min(it->key().size(), prefixkey.size-1))) {
+	/* prefixkey.data+5 since sext is ending the tuple with type 1 byte & size 4 bytes */
+	if (memcmp(prefixkey.data+5, it->key().data()+5, min(it->key().size()-5, prefixkey.size-5))) {
 	    // no more data to read
 	    i = -1;
 	    break;
@@ -1342,8 +1322,9 @@ read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     }
 
     if (i == max_keys && it->Valid() &&
-	/* prefixkey.size-1 since sext is ending the list with stopper which shouldn't be compared */
-	!memcmp(it->key().data(), prefixkey.data, min(it->key().size(), prefixkey.size-1)) ) {
+	/* prefixkey.data+5 since sext is ending tuple with type 1 byte and size 4 bytes
+	   which shouldn't be compared */
+	!memcmp(it->key().data()+5, prefixkey.data+5, min(it->key().size()-5, prefixkey.size-5)) ) {
 	/*Construct key_term*/
 	enif_alloc_binary(it->key().size(), &binkey);
 	memcpy(binkey.data, it->key().data(), it->key().size());

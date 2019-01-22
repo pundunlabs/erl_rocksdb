@@ -21,6 +21,14 @@ if [ -z "$(echo "test text" | openssl sha256 2>/dev/null)" ]; then
     done
 fi
 
+## temporary fix for macos __ZdlPvSt11align_val_t
+## do not use in production
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    CURDIR=`pwd`
+    (cd ${ROCKSDB_DIR} && git apply ${CURDIR}/lru_cache.patch 2>/dev/null)
+fi
+
+
 # disable BZIP since building the static lib for support got harder
 # when bzip.org got discontinued
 export ROCKSDB_DISABLE_BZIP=1

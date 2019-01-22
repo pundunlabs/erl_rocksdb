@@ -1,0 +1,32 @@
+diff --git a/cache/lru_cache.cc b/cache/lru_cache.cc
+index d4cbb9a45..6e8cd8eaf 100644
+--- a/cache/lru_cache.cc
++++ b/cache/lru_cache.cc
+@@ -246,6 +246,12 @@ void LRUCacheShard::EvictFromLRU(size_t charge,
+   }
+ }
+ 
++void LRUCacheShard::operator delete(void *memblock) {
++  port::cacheline_aligned_free(memblock);
++}
++
++void LRUCacheShard::operator delete(void* /*memblock*/, void* /*ptr*/) {}
++
+ void LRUCacheShard::SetCapacity(size_t capacity) {
+   autovector<LRUHandle*> last_reference_list;
+   {
+diff --git a/cache/lru_cache.h b/cache/lru_cache.h
+index 3c067f0c1..6f5bc469e 100644
+--- a/cache/lru_cache.h
++++ b/cache/lru_cache.h
+@@ -208,6 +208,10 @@ class ALIGN_AS(CACHE_LINE_SIZE) LRUCacheShard : public CacheShard {
+ 
+   //  Retrives high pri pool ratio
+   double GetHighPriPoolRatio();
++  void operator delete(void *);
++
++  // placement delete, does nothing.
++  void operator delete(void*, void*);
+ 
+  private:
+   void LRU_Remove(LRUHandle* e);

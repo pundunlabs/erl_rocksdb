@@ -120,6 +120,8 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
     ERL_NIF_TERM head, tail;
     const ERL_NIF_TERM* tuple;
     int arity;
+    
+    rocksdb::BlockBasedTableOptions bbto;
 
     if (!enif_get_list_length(env, kvl, &kvl_len)) {
 	return -1;
@@ -184,11 +186,9 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 
 	}
 
-	rocksdb::BlockBasedTableOptions bbto;
-
 	bbto.no_block_cache = false;
 	bbto.cache_index_and_filter_blocks = false;
-	bbto.pin_top_level_index_and_filter = true
+	bbto.pin_top_level_index_and_filter = true;
 	bbto.index_type = rocksdb::BlockBasedTableOptions::IndexType::kTwoLevelIndexSearch;
 	bbto.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
 	bbto.partition_filters = true;
