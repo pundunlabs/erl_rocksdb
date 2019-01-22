@@ -9,6 +9,7 @@
 #include "rocksdb_nif.h"
 
 #include <string>
+#include <unistd.h>
 
 namespace  { /* anonymous namespace starts */
 
@@ -666,7 +667,7 @@ ERL_NIF_TERM lru_cache_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) 
 
     // size is MB convert to bytes
     size *= 1024 * 1024;
-    *lru_cache = rocksdb::NewLRUCache(size);
+    *lru_cache = rocksdb::NewLRUCache(size, false, 80.0);
     opts = (lru_obj_resource*) enif_alloc_resource(lruResource, sizeof(lru_obj_resource));
     opts->object = lru_cache;
 
@@ -1126,7 +1127,7 @@ ERL_NIF_TERM read_range_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 }
 
 ERL_NIF_TERM
-read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+read_range_prefix_stop_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     opt_obj_resource *ropts;
     rocksdb::ReadOptions *readoptions;
     db_obj_resource *rdb;
@@ -1135,9 +1136,10 @@ read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     ErlNifBinary binkey;
 
     int max_keys;
+    int i = 0;
 
     /*get db_ptr resource*/
-    if (argc != 5 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+    if (argc != 6  || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
 	return enif_make_badarg(env);
     }
 
@@ -1156,16 +1158,26 @@ read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     if (!enif_inspect_binary(env, argv[3], &binkey)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "start_key"));
     }
+    rocksdb::Slice start((const char*)binkey.data, (size_t) binkey.size);
+
+    /*get range stop key if present*/
+    if (!enif_inspect_binary(env, argv[4], &binkey)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "stop_key"));
+    }
+    rocksdb::Slice stop((const char*)binkey.data, (size_t) binkey.size);
 
     /*get limit integer*/
-    if (!enif_get_int(env, argv[4], &max_keys)) {
+    if (!enif_get_int(env, argv[5], &max_keys)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "limit"));
     }
 
-    rocksdb::Slice start((const char*)binkey.data, (size_t) binkey.size);
+    auto comparator = rdb->cfd_options->comparator;
 
     /*Create rocksdb iterator*/
     rocksdb::Iterator* it = NewIterator(rdb, readoptions);
+
+    /*Create rocksdb halt iterator*/
+    rocksdb::Iterator* halt_it = NewIterator(rdb, readoptions);
 
     /*Create empty list to store key/value pairs*/
     ERL_NIF_TERM kvl;
@@ -1180,15 +1192,15 @@ read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     /*declare vector to keep key/value pairs*/
     vector<ERL_NIF_TERM> kvl_vector;
 
-    /*Iterate through start to limit*/
-    int i = 0;
-    for (it->Seek(start);
-	 it->Valid() && i < max_keys;
+    /*Iterate from start to limit*/
+    for (it->Seek(start), halt_it->Seek(stop), i=0;
+	 it->Valid() && i < max_keys && it->key() != halt_it->key();
 	 it->Next()) {
 
 	/* stop if key is not prefixed */
-	if (!memcmp(it->key().data(), prefixkey.data, min(it->key().size(), prefixkey.size))) {
-	    // no more data to red
+	/* prefixkey.data+5 since we are conding tuples 1 byte type; 4 bytes size */
+	if (memcmp(prefixkey.data+5, it->key().data()+5, min(it->key().size()-5, prefixkey.size-5))) {
+	    // no more data to read
 	    i = -1;
 	    break;
 	}
@@ -1206,8 +1218,110 @@ read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 	i++;
     }
 
-    if ( i == max_keys && it->Valid() &&
-	 memcmp(it->key().data(), prefixkey.data, min(it->key().size(), prefixkey.size)) ) {
+    if (i == max_keys && it->Valid() &&
+	/* prefixkey.size+5 since sext encoding tuples are 1 byte type; 4 bytes size */
+	!memcmp(it->key().data()+5, prefixkey.data+5, min(it->key().size()-5, prefixkey.size-5)) ) {
+	/*Construct key_term*/
+	enif_alloc_binary(it->key().size(), &binkey);
+	memcpy(binkey.data, it->key().data(), it->key().size());
+	cont = enif_make_binary(env, &binkey);
+    }
+    else {
+	cont = atom_complete;
+    }
+
+    delete it;
+    delete halt_it;
+
+    kvl = enif_make_list_from_array(env, &kvl_vector[0], kvl_vector.size());
+    return enif_make_tuple3(env, atom_ok, kvl, cont);
+}
+
+ERL_NIF_TERM
+read_range_prefix_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    opt_obj_resource *ropts;
+    rocksdb::ReadOptions *readoptions;
+    db_obj_resource *rdb;
+
+    ErlNifBinary prefixkey;
+    ErlNifBinary binkey;
+
+    int max_keys;
+    int i = 0;
+
+    /*get db_ptr resource*/
+    if (argc != 5  || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+
+    /*get readoptions resource*/
+    if (!enif_get_resource(env, argv[1], readoptionResource, (void **) &ropts)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "readoptions"));
+    }
+    readoptions = (rocksdb::ReadOptions *) ropts->object;
+
+    /*get prefix key*/
+    if (!enif_inspect_binary(env, argv[2], &prefixkey)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "prefix_key"));
+    }
+
+    /*get range start key*/
+    if (!enif_inspect_binary(env, argv[3], &binkey)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "start_key"));
+    }
+    rocksdb::Slice start((const char*)binkey.data, (size_t) binkey.size);
+
+    /*get limit integer*/
+    if (!enif_get_int(env, argv[4], &max_keys)) {
+	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "limit"));
+    }
+
+    /*Create rocksdb iterator*/
+    rocksdb::Iterator* it = NewIterator(rdb, readoptions);
+
+    /*Create empty list to store key/value pairs*/
+    ERL_NIF_TERM kvl;
+    /* Continuation or atom complete */
+    ERL_NIF_TERM cont;
+
+    /*Declare key and value erlang resources*/
+    ErlNifBinary binvalue;
+    ERL_NIF_TERM key_term;
+    ERL_NIF_TERM value_term;
+
+    /*declare vector to keep key/value pairs*/
+    vector<ERL_NIF_TERM> kvl_vector;
+
+    /*Iterate from start to limit*/
+    for (it->Seek(start);
+	 it->Valid() && i < max_keys;
+	 it->Next()) {
+
+	/* stop if key is not prefixed */
+	/* prefixkey.data+5 since sext is ending the tuple with type 1 byte & size 4 bytes */
+	if (memcmp(prefixkey.data+5, it->key().data()+5, min(it->key().size()-5, prefixkey.size-5))) {
+	    // no more data to read
+	    i = -1;
+	    break;
+	}
+
+	/*Construct key_term*/
+	enif_alloc_binary(it->key().size(), &binkey);
+	memcpy(binkey.data, it->key().data(), it->key().size());
+	key_term = enif_make_binary(env, &binkey);
+	/*Construct value_term*/
+	enif_alloc_binary(it->value().size(), &binvalue);
+	memcpy(binvalue.data, it->value().data(), it->value().size());
+	value_term = enif_make_binary(env, &binvalue);
+
+	kvl_vector.push_back(enif_make_tuple2(env, key_term, value_term));
+	i++;
+    }
+
+    if (i == max_keys && it->Valid() &&
+	/* prefixkey.data+5 since sext is ending tuple with type 1 byte and size 4 bytes
+	   which shouldn't be compared */
+	!memcmp(it->key().data()+5, prefixkey.data+5, min(it->key().size()-5, prefixkey.size-5)) ) {
 	/*Construct key_term*/
 	enif_alloc_binary(it->key().size(), &binkey);
 	memcpy(binkey.data, it->key().data(), it->key().size());
@@ -1702,6 +1816,7 @@ ErlNifFunc nif_funcs[] = {
     {"read_range", 5, read_range_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"read_range_n", 4, read_range_n_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"read_range_prefix_n", 5, read_range_prefix_n_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"read_range_prefix_stop_n", 6, read_range_prefix_stop_n_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
     {"iterator", 2, iterator_nif},
     {"delete_iterator", 1, delete_iterator_nif},

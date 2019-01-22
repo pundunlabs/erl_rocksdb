@@ -1,6 +1,6 @@
 #!/bin/sh
 ROCKSDB_DIR=c_src/rocksdb
-ROCKSDB_TAG=v5.14.3
+ROCKSDB_TAG=v5.17.2
 
 if [ ! -d ${ROCKSDB_DIR} ]; then
     # Control will enter here if rocksdb doesn't exist.
@@ -20,6 +20,14 @@ if [ -z "$(echo "test text" | openssl sha256 2>/dev/null)" ]; then
 	fi
     done
 fi
+
+## temporary fix for macos __ZdlPvSt11align_val_t
+## do not use in production
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    CURDIR=`pwd`
+    (cd ${ROCKSDB_DIR} && git apply ${CURDIR}/lru_cache.patch 2>/dev/null)
+fi
+
 
 # disable BZIP since building the static lib for support got harder
 # when bzip.org got discontinued
