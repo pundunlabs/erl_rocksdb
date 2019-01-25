@@ -22,6 +22,7 @@ class TermPrep {
 	    for (auto it = indices.begin(); it != indices.end(); ++it){
 		std::string terms_str;
 		Term cid = it->first;
+		cids_.push_back(cid);
 		std::vector<Term> terms = it->second;
 		for (auto tit = terms.begin(); tit != terms.end(); ++tit){
 		    //Prepare posting 'p'
@@ -58,6 +59,8 @@ class TermPrep {
 
 	std::vector<std::pair<std::string, std::string>> rev_index_;
 	std::vector<std::pair<std::string, std::string>> index_;
+	std::vector<Term> cids_;
+
     private:
 	rocksdb::Env* env_;
 	static int IsNotAlfaNumericOrSpace (int c) {

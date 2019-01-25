@@ -444,9 +444,31 @@ rocksdb::Status PutTerms(db_obj_resource* rdb,
 			 rocksdb::Slice* value,
 			 std::vector<std::pair<Term, std::vector<Term>>> indices
 			) {
+    // prepare any new indices
     TermPrep tp = TermPrep(indices, key);
+    // delete any indicies that may be overwritten by this write
+    TermDelete td = TermDelete(tp.cids_, key);
     rocksdb::Status status;
     rocksdb::WriteBatch batch;
+    rocksdb::ReadOptions readoptions;
+
+    //Delete any index history
+    for (auto it = td.index_.begin(); it != td.index_.end(); ++it) {
+	rocksdb::Slice key2term(*it);
+	rocksdb::PinnableSlice value;
+	status = Get(rdb, &readoptions, 1, &key2term, &value);
+	if (status.ok()) {
+	    td.ParseReveseIndex(*it, &value);
+	}
+	batch.Delete(rdb->handles->at(1), key2term);
+    }
+    //Merges for reverse indexes
+    for (auto it = td.rev_index_.begin(); it != td.rev_index_.end(); ++it){
+	batch.Merge(rdb->handles->at(2),
+		    rocksdb::Slice(*it),
+		    rocksdb::Slice(td.posting_));
+    }
+
     //Put value
     batch.Put(rdb->handles->at(0), *key, *value);
     //Merge for keeping index history
