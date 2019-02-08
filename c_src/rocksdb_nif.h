@@ -15,8 +15,8 @@
 #include "rocksdb/utilities/checkpoint.h"
 
 #include "term_index_merger.h"
-#include "term_prep.h"
 #include "erl_nif.h"
+#include "rocksdb_nif_resources.h"
 
 #define MAXPATHLEN  255
 
@@ -24,36 +24,6 @@
 #define DB_WITH_TTL	1
 
 using namespace std;
-
-typedef struct _opt_obj_resource {
-  void *object;
-} opt_obj_resource;
-
-typedef struct _db_obj_resource {
-  char allocated;
-  unordered_set<void*>* link_set;
-  mutex* mtx;
-  void* object;
-  ErlNifPid pid;
-  int32_t ttl;
-  char type;
-  char db_open;
-  rocksdb::ColumnFamilyOptions* cfd_options;
-  rocksdb::ColumnFamilyOptions* cfi_options;
-  rocksdb::ColumnFamilyOptions* cfr_options;
-  vector<rocksdb::ColumnFamilyHandle*>* handles;
-} db_obj_resource;
-
-typedef struct _it_obj_resource {
-  char allocated;
-  mutex *mtx;
-  void *linked_obj;
-  void *object;
-} it_obj_resource;
-
-typedef struct _lru_obj_resource {
-  void *object;
-} lru_obj_resource;
 
 
 extern void init_lib_atoms(ErlNifEnv* env);
