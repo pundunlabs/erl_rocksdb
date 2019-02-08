@@ -23,7 +23,7 @@ fi
 
 ## temporary fix for macos __ZdlPvSt11align_val_t
 ## do not use in production
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if echo "$OSTYPE" | grep "darwin16"; then
     CURDIR=`pwd`
     (cd ${ROCKSDB_DIR} && git apply ${CURDIR}/lru_cache.patch 2>/dev/null)
 fi
