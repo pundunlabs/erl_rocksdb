@@ -6,6 +6,7 @@
 
 namespace {
     /* atoms */
+    ERL_NIF_TERM atom_ok;
     ERL_NIF_TERM atom_error;
     ERL_NIF_TERM atom_not_found;
     ERL_NIF_TERM atom_corruption;
@@ -42,6 +43,7 @@ namespace {
 int parse_kvl_to_map(ErlNifEnv* env, ERL_NIF_TERM kvl, unordered_map<string,string>& map);
 
 void init_lib_atoms(ErlNifEnv* env) {
+    atom_ok = enif_make_atom(env, "ok");
     atom_error = enif_make_atom(env, "error");
     atom_not_found = enif_make_atom(env, "not_found");
     atom_corruption = enif_make_atom(env, "corruption");
@@ -788,4 +790,15 @@ ERL_NIF_TERM rocksdb_memory_usage(ErlNifEnv* env, db_obj_resource* rdb) {
 
 		enif_make_tuple2(env, atom_mem_cached,
 			enif_make_int64(env, (ErlNifSInt64) mem_cached)));
+}
+
+ERL_NIF_TERM get_property(ErlNifEnv* env, db_obj_resource* rdb, char *arg) {
+    rocksdb::DB* db;
+    std::string res;
+    db = static_cast<rocksdb::DB*>(rdb->object);
+
+    db->GetProperty(rdb->handles->at(0), arg, &res);
+
+    return  enif_make_tuple2(env, atom_ok,
+		enif_make_string(env, res.c_str(), ERL_NIF_LATIN1));
 }

@@ -19,6 +19,7 @@
 #include "rocksdb_nif_resources.h"
 
 #define MAXPATHLEN  255
+#define MAXARGLEN   255
 
 #define DB_DEFAULT	0
 #define DB_WITH_TTL	1
@@ -120,5 +121,6 @@ extern int parse_int_pairs(ErlNifEnv* env,
 void SetTtl(db_obj_resource *rdb, int32_t ttl);
 
 extern ERL_NIF_TERM rocksdb_memory_usage(ErlNifEnv* env, db_obj_resource* rdb);
+extern ERL_NIF_TERM get_property(ErlNifEnv* env, db_obj_resource* rdb, char *arg_str);
 
 #endif /*ROCKSDB_NIF_H*/

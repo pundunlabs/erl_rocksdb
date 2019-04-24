@@ -44,7 +44,8 @@
 	 create_checkpoint/2,
 	 set_ttl/2]).
 
--export([memory_usage/1]).
+-export([memory_usage/1,
+	 get_property/2]).
 
 -export([resource_test/0]).
 
@@ -459,6 +460,16 @@ get_backup_info(_path) ->
 	   {mem_chached, CachedMemory :: integer()}] |
 	{error, Reason :: any()}.
 memory_usage(_DB) ->
+    erlang:nif_error(nif_library_not_loaded).
+
+%%--------------------------------------------------------------------
+%% @doc Get rocksdb property for a shard.
+%% @end
+%%--------------------------------------------------------------------
+-spec get_property(DB :: db(), Property :: string()) ->
+	{ok, string()} |
+	{error, Reason :: any()}.
+get_property(_DB, _Property) ->
     erlang:nif_error(nif_library_not_loaded).
 
 %%--------------------------------------------------------------------
