@@ -667,7 +667,7 @@ ERL_NIF_TERM lru_cache_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) 
 
     // size is MB convert to bytes
     size *= 1024 * 1024;
-    *lru_cache = rocksdb::NewLRUCache(size, false, 80.0);
+    *lru_cache = rocksdb::NewLRUCache(size, 80.0, false);
     opts = (lru_obj_resource*) enif_alloc_resource(lruResource, sizeof(lru_obj_resource));
     opts->object = lru_cache;
 
@@ -1170,8 +1170,6 @@ read_range_prefix_stop_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
     if (!enif_get_int(env, argv[5], &max_keys)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "limit"));
     }
-
-    auto comparator = rdb->cfd_options->comparator;
 
     /*Create rocksdb iterator*/
     rocksdb::Iterator* it = NewIterator(rdb, readoptions);
