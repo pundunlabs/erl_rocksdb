@@ -1,9 +1,12 @@
 #include "rocksdb_nif.h"
+#include "rocksdb_nif_resources.h"
+#include "term_prep.h"
 #include "rocksdb/convenience.h"
 #include "table/block_based_table_factory.h"
 
 namespace {
     /* atoms */
+    ERL_NIF_TERM atom_ok;
     ERL_NIF_TERM atom_error;
     ERL_NIF_TERM atom_not_found;
     ERL_NIF_TERM atom_corruption;
@@ -40,6 +43,7 @@ namespace {
 int parse_kvl_to_map(ErlNifEnv* env, ERL_NIF_TERM kvl, unordered_map<string,string>& map);
 
 void init_lib_atoms(ErlNifEnv* env) {
+    atom_ok = enif_make_atom(env, "ok");
     atom_error = enif_make_atom(env, "error");
     atom_not_found = enif_make_atom(env, "not_found");
     atom_corruption = enif_make_atom(env, "corruption");
@@ -444,23 +448,19 @@ rocksdb::Status PutTerms(db_obj_resource* rdb,
 			 rocksdb::Slice* value,
 			 std::vector<std::pair<Term, std::vector<Term>>> indices
 			) {
-    TermPrep tp = TermPrep(indices, key);
     rocksdb::Status status;
     rocksdb::WriteBatch batch;
+    // prepare any new indices
+    TermPrep tp = TermPrep(indices, key);
+    // delete any indicies that may be overwritten by this write
+    TermDelete td = TermDelete(tp.cids, key);
+
+    td.add_to_batch(rdb, batch);
+
     //Put value
     batch.Put(rdb->handles->at(0), *key, *value);
-    //Merge for keeping index history
-    for (auto it = tp.index_.begin(); it != tp.index_.end(); ++it){
-	batch.Put(rdb->handles->at(1),
-		  rocksdb::Slice(it->first),
-		  rocksdb::Slice(it->second));
-    }
-    //Merges for reverse indexes
-    for (auto it = tp.rev_index_.begin(); it != tp.rev_index_.end(); ++it){
-	batch.Merge(rdb->handles->at(2),
-		    rocksdb::Slice(it->first),
-		    rocksdb::Slice(it->second));
-    }
+    tp.add_to_batch(rdb, batch);
+
     //Apply batch according to db type
     if (rdb->type == DB_WITH_TTL) {
 	rocksdb::DBWithTTL* db = static_cast<rocksdb::DBWithTTL*>(rdb->object);
@@ -500,28 +500,15 @@ rocksdb::Status DeleteTerms(db_obj_resource* rdb,
 			    rocksdb::WriteOptions* writeoptions,
 			    rocksdb::Slice* key,
 			    std::vector<Term> cids) {
-    TermDelete td = TermDelete(cids, key);
     rocksdb::Status status;
     rocksdb::WriteBatch batch;
-    rocksdb::ReadOptions readoptions;
+    TermDelete td = TermDelete(cids, key);
+
     //Delete value
     batch.Delete(rdb->handles->at(0), *key);
-    //Delete index history
-    for (auto it = td.index_.begin(); it != td.index_.end(); ++it) {
-	rocksdb::Slice key2term(*it);
-	rocksdb::PinnableSlice value;
-	status = Get(rdb, &readoptions, 1, &key2term, &value);
-	if (status.ok()) {
-	    td.ParseReveseIndex(*it, &value);
-	}
-	batch.Delete(rdb->handles->at(1), key2term);
-    }
-    //Merges for reverse indexes
-    for (auto it = td.rev_index_.begin(); it != td.rev_index_.end(); ++it){
-	batch.Merge(rdb->handles->at(2),
-		    rocksdb::Slice(*it),
-		    rocksdb::Slice(td.posting_));
-    }
+
+    td.add_to_batch(rdb, batch);
+
     //Apply batch according to db type
     if (rdb->type == DB_WITH_TTL) {
 	rocksdb::DBWithTTL* db = static_cast<rocksdb::DBWithTTL*>(rdb->object);
@@ -803,4 +790,15 @@ ERL_NIF_TERM rocksdb_memory_usage(ErlNifEnv* env, db_obj_resource* rdb) {
 
 		enif_make_tuple2(env, atom_mem_cached,
 			enif_make_int64(env, (ErlNifSInt64) mem_cached)));
+}
+
+ERL_NIF_TERM get_property(ErlNifEnv* env, db_obj_resource* rdb, char *arg) {
+    rocksdb::DB* db;
+    std::string res;
+    db = static_cast<rocksdb::DB*>(rdb->object);
+
+    db->GetProperty(rdb->handles->at(0), arg, &res);
+
+    return  enif_make_tuple2(env, atom_ok,
+		enif_make_string(env, res.c_str(), ERL_NIF_LATIN1));
 }

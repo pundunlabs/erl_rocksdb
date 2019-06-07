@@ -667,7 +667,7 @@ ERL_NIF_TERM lru_cache_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) 
 
     // size is MB convert to bytes
     size *= 1024 * 1024;
-    *lru_cache = rocksdb::NewLRUCache(size, false, 80.0);
+    *lru_cache = rocksdb::NewLRUCache(size, 80.0, false);
     opts = (lru_obj_resource*) enif_alloc_resource(lruResource, sizeof(lru_obj_resource));
     opts->object = lru_cache;
 
@@ -1170,8 +1170,6 @@ read_range_prefix_stop_n_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
     if (!enif_get_int(env, argv[5], &max_keys)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "limit"));
     }
-
-    auto comparator = rdb->cfd_options->comparator;
 
     /*Create rocksdb iterator*/
     rocksdb::Iterator* it = NewIterator(rdb, readoptions);
@@ -1790,6 +1788,25 @@ ERL_NIF_TERM memory_usage_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     return rocksdb_memory_usage(env, rdb);
 }
 
+/* get property */
+ERL_NIF_TERM get_property_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    char arg_str[MAXARGLEN];
+    db_obj_resource *rdb;
+
+    /* get db_ptr resource */
+    if (argc != 2 || !enif_get_resource(env, argv[0], dbResource, (void **) &rdb)) {
+	return enif_make_badarg(env);
+    }
+
+    /* get arg string */
+    if(enif_get_string(env, argv[1], arg_str, sizeof(arg_str), ERL_NIF_LATIN1) < 1 ) {
+	return enif_make_badarg(env);
+    }
+
+    return get_property(env, rdb, arg_str);
+}
+
+
 ErlNifFunc nif_funcs[] = {
     {"open_db", 3, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"open_db", 4, open_db_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -1838,7 +1855,8 @@ ErlNifFunc nif_funcs[] = {
 
     {"resource_test", 0, resource_test_nif},
 
-    {"memory_usage", 1, memory_usage_nif}
+    {"memory_usage", 1, memory_usage_nif},
+    {"get_property", 2, get_property_nif}
 
 };
 } /* anonymouse namespace ends */

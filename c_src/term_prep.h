@@ -1,11 +1,8 @@
 #pragma once
 #include "utilities/ttl/db_ttl_impl.h"
 #include "term_index_macros.h"
-
-struct Term {
-  const char* data;
-  size_t size;
-};
+#include "rocksdb_nif_resources.h"
+#include "rocksdb_nif.h"
 
 class TermPrep {
     public:
@@ -22,6 +19,7 @@ class TermPrep {
 	    for (auto it = indices.begin(); it != indices.end(); ++it){
 		std::string terms_str;
 		Term cid = it->first;
+		cids.push_back(cid);
 		std::vector<Term> terms = it->second;
 		for (auto tit = terms.begin(); tit != terms.end(); ++tit){
 		    //Prepare posting 'p'
@@ -56,10 +54,27 @@ class TermPrep {
 
 	~TermPrep() {};
 
-	std::vector<std::pair<std::string, std::string>> rev_index_;
-	std::vector<std::pair<std::string, std::string>> index_;
+	void add_to_batch(db_obj_resource* rdb, rocksdb::WriteBatch &batch) {
+	    //Merge for keeping index history
+	    for (auto it = index_.begin(); it != index_.end(); ++it){
+		batch.Put(rdb->handles->at(1),
+			  rocksdb::Slice(it->first),
+			  rocksdb::Slice(it->second));
+	    }
+	    //Merges for reverse indexes
+	    for (auto it = rev_index_.begin(); it != rev_index_.end(); ++it){
+		batch.Merge(rdb->handles->at(2),
+			    rocksdb::Slice(it->first),
+			    rocksdb::Slice(it->second));
+	    }
+	}
+
+	std::vector<Term> cids;
+
     private:
 	rocksdb::Env* env_;
+	std::vector<std::pair<std::string, std::string>> rev_index_;
+	std::vector<std::pair<std::string, std::string>> index_;
 	static int IsNotAlfaNumericOrSpace (int c) {
 	    return !(std::isalnum(c) || std::isspace(c));
 	}
@@ -103,9 +118,32 @@ class TermDelete {
 		j += (pPrefixLen+term_len);
 	    }
 	}
+
+	void add_to_batch(db_obj_resource* rdb, rocksdb::WriteBatch &batch) {
+	    rocksdb::Status status;
+	    rocksdb::ReadOptions readoptions;
+
+	    //Delete any index history
+	    for (auto it = index_.begin(); it != index_.end(); ++it) {
+		rocksdb::Slice key2term(*it);
+		rocksdb::PinnableSlice value;
+		status = Get(rdb, &readoptions, 1, &key2term, &value);
+		if (status.ok()) {
+		    ParseReveseIndex(*it, &value);
+		}
+		batch.Delete(rdb->handles->at(1), key2term);
+	    }
+	    //Merges for reverse indexes (deleted)
+	    for (auto it = rev_index_.begin(); it != rev_index_.end(); ++it){
+		batch.Merge(rdb->handles->at(2),
+			    rocksdb::Slice(*it),
+			    rocksdb::Slice(posting_));
+	    }
+	}
+
+    private:
+	const char remove_[pSuffixLen] = {0};
 	std::string posting_;
 	std::vector<std::string> index_;
 	std::vector<std::string> rev_index_;
-    private:
-	const char remove_[pSuffixLen] = {0};
 };
