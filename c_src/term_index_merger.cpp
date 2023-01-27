@@ -21,7 +21,7 @@ namespace rocksdb {
 	    // Only one operand
 	    Slice back = merge_in.operand_list.back();
 	    //If operand is expired
-	    if ( DBWithTTLImpl::IsStale(back, ttl_, env_) || IsDelete(back.data(), back.size()) ) {
+	    if ( DBWithTTLImpl::IsStale(back, ttl_, env_->GetSystemClock().get()) || IsDelete(back.data(), back.size()) ) {
 		return true;
 	    }
 	    merge_out->new_value.append(back.data(), back.size());
@@ -45,7 +45,7 @@ namespace rocksdb {
 	    while( i < size ) {
 		auto pos = existing + i;
 		auto portion = rocksdb::DecodeFixed32(pos);
-		if ( !DBWithTTLImpl::IsStale(Slice(pos + portion), ttl_, env_) )
+		if ( !DBWithTTLImpl::IsStale(Slice(pos + portion), ttl_, env_->GetSystemClock().get()) )
 		{
 		    std::string posting = std::string(pos, portion);
 		    posting_set.emplace(std::move(posting));
@@ -68,7 +68,7 @@ namespace rocksdb {
 		if (iter != posting_set.end()) {
 		    posting_set.erase(iter);
 		}
-	    } else if ( !DBWithTTLImpl::IsStale(*it, ttl_, env_) ) {
+	    } else if ( !DBWithTTLImpl::IsStale(*it, ttl_, env_->GetSystemClock().get()) ) {
 		auto iter = posting_set.find(posting);
 		if (iter != posting_set.end()) {
 		    auto hint = posting_set.erase(iter);

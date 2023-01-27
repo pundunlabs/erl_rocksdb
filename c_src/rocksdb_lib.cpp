@@ -2,7 +2,8 @@
 #include "rocksdb_nif_resources.h"
 #include "term_prep.h"
 #include "rocksdb/convenience.h"
-#include "table/block_based_table_factory.h"
+#include "rocksdb/filter_policy.h"
+#include "table/block_based/block_based_table_factory.h"
 
 namespace {
     /* atoms */
@@ -194,7 +195,7 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	bbto.cache_index_and_filter_blocks = false;
 	bbto.pin_top_level_index_and_filter = true;
 	bbto.index_type = rocksdb::BlockBasedTableOptions::IndexType::kTwoLevelIndexSearch;
-	bbto.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
+	bbto.filter_policy.reset(rocksdb::NewRibbonFilterPolicy(10, false));
 	bbto.partition_filters = true;
 	bbto.metadata_block_size = 4096;
 	bbto.cache_index_and_filter_blocks_with_high_priority = true;
@@ -248,7 +249,7 @@ int fix_cf_options(ErlNifEnv* env, ERL_NIF_TERM kvl,
 	    rdb->cfd_options->compaction_style = rocksdb::kCompactionStyleFIFO;
 	    rdb->cfd_options->compaction_options_fifo.max_table_files_size = size;
 	    rdb->cfd_options->compaction_options_fifo.allow_compaction = true;
-	    rdb->cfd_options->compaction_options_fifo.ttl = ttl;
+	    rdb->cfd_options->ttl = ttl;
 	}
 	kvl = tail;
     }
@@ -564,7 +565,7 @@ rocksdb::Status BackupDB(db_obj_resource* rdb,
     rocksdb::Status status;
 
     rocksdb::BackupEngine* backup_engine;
-    status = rocksdb::BackupEngine::Open(rocksdb::Env::Default(), rocksdb::BackupableDBOptions(path_string), &backup_engine);
+    status = rocksdb::BackupEngine::Open(rocksdb::Env::Default(), rocksdb::BackupEngineOptions(path_string), &backup_engine);
 
     if(status.ok()) {
 	if (rdb->type == DB_WITH_TTL) {
@@ -588,7 +589,7 @@ rocksdb::Status RestoreDB(char* bkp_path,
     rocksdb::BackupEngineReadOnly* backup_engine;
     rocksdb::Status status =
 	rocksdb::BackupEngineReadOnly::Open(rocksdb::Env::Default(),
-					    rocksdb::BackupableDBOptions(bkp_path_str),
+					    rocksdb::BackupEngineOptions(bkp_path_str),
 					    &backup_engine);
     if(status.ok()) {
 	rocksdb::RestoreOptions restore_options(false);
@@ -611,7 +612,7 @@ rocksdb::Status RestoreDB(char* bkp_path,
     rocksdb::BackupEngineReadOnly* backup_engine;
     rocksdb::Status status =
 	rocksdb::BackupEngineReadOnly::Open(rocksdb::Env::Default(),
-					    rocksdb::BackupableDBOptions(bkp_path_str),
+					    rocksdb::BackupEngineOptions(bkp_path_str),
 					    &backup_engine);
 
     if(status.ok()) {
@@ -744,12 +745,10 @@ void SetTtl(db_obj_resource* rdb, int32_t ttl) {
 
 ERL_NIF_TERM rocksdb_memory_usage(ErlNifEnv* env, db_obj_resource* rdb) {
     rocksdb::DB* db;
+    rocksdb::Options options;
     uint64_t mem_total = 0;
     uint64_t mem_unflushed = 0;
     uint64_t mem_cached = 0;
-    const rocksdb::BlockBasedTableFactory* bbtfd;
-    const rocksdb::BlockBasedTableFactory* bbtfi;
-    const rocksdb::BlockBasedTableFactory* bbtfr;
 
     db = static_cast<rocksdb::DB*>(rdb->object);
 
@@ -758,28 +757,7 @@ ERL_NIF_TERM rocksdb_memory_usage(ErlNifEnv* env, db_obj_resource* rdb) {
                                  &mem_total);
     //MemTable UnFlushed Mem
     db->GetAggregatedIntProperty(rocksdb::DB::Properties::kCurSizeAllMemTables,
-				 &mem_unflushed);
-
-    //Cache Memory Data
-    bbtfd =
-	static_cast<const rocksdb::BlockBasedTableFactory *>
-	    (rdb->cfd_options->table_factory.get());
-    const auto bbt_optsd = bbtfd->table_options();
-    mem_cached = bbt_optsd.block_cache->GetUsage();
-
-    //Cache Memory Index
-    bbtfi =
-	static_cast<const rocksdb::BlockBasedTableFactory *>
-	    (rdb->cfi_options->table_factory.get());
-    const auto bbt_optsi = bbtfi->table_options();
-    mem_cached = bbt_optsi.block_cache->GetUsage();
-
-    //Cache Memory Reverse Index
-    bbtfr =
-	static_cast<const rocksdb::BlockBasedTableFactory *>
-	    (rdb->cfr_options->table_factory.get());
-    const auto bbt_optsr = bbtfr->table_options();
-    mem_cached = bbt_optsr.block_cache->GetUsage();
+                                &mem_unflushed);
 
     return enif_make_list3(env,
 		enif_make_tuple2(env, atom_mem_total,

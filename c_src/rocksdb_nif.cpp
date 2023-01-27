@@ -3,7 +3,6 @@
 #include "options/options_helper.h"
 #include "rocksdb/convenience.h"
 #include "util/string_util.h"
-#include "util/sync_point.h"
 
 #include "port/port.h"
 #include "rocksdb_nif.h"
@@ -956,8 +955,8 @@ ERL_NIF_TERM approximate_size_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM a
 
 ERL_NIF_TERM read_range_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     opt_obj_resource *opts;
-    rocksdb::DBOptions *options;
     opt_obj_resource *ropts;
+    //rocksdb::DBOptions *options;
     rocksdb::ReadOptions *readoptions;
     db_obj_resource *rdb;
     int arity;
@@ -975,7 +974,7 @@ ERL_NIF_TERM read_range_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if (!enif_get_resource(env, argv[1], optionResource, (void **) &opts)) {
 	return enif_make_tuple2(env, atom_error, enif_make_atom(env, "options"));
     }
-    options = (rocksdb::DBOptions *) opts->object;
+    //options = (rocksdb::DBOptions *) opts->object;
 
     /*get readoptions resource*/
     if (!enif_get_resource(env, argv[2], readoptionResource, (void **) &ropts)) {
@@ -1651,7 +1650,7 @@ ERL_NIF_TERM get_backup_info_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
     else{
 	const string path_string(path);
 	rocksdb::BackupEngine* backup_engine;
-	rocksdb::Status status = rocksdb::BackupEngine::Open(rocksdb::Env::Default(), rocksdb::BackupableDBOptions(path_string), &backup_engine);
+	rocksdb::Status status = rocksdb::BackupEngine::Open(rocksdb::Env::Default(), rocksdb::BackupEngineOptions(path_string), &backup_engine);
 
 	if(status.ok()) {
 	    std::vector<rocksdb::BackupInfo> backup_info;
