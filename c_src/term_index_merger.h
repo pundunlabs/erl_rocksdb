@@ -7,7 +7,7 @@ namespace rocksdb {
     class KeyComp
     {
 	public:
-	    bool operator()(const std::string& a, const std::string& b) {
+	    inline bool operator()(const std::string& a, const std::string& b) const {
 		auto lex_comp = a.compare(pPrefixLen, a.size()-pExtLen,
 					  b, pPrefixLen, b.size()-pExtLen);
 		return lex_comp < 0;
